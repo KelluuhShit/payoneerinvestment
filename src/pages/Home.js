@@ -9,50 +9,30 @@ import {
   InputBase,
   Paper,
 } from '@mui/material';
-import { Person as PersonIcon, Notifications as NotificationsIcon, Search as SearchIcon, AddCircleOutline as AddCircleOutlineIcon,
-    RemoveCircleOutline as RemoveCircleOutlineIcon,
-    TrendingUp as TrendingUpIcon,
-    MoreHoriz as MoreHorizIcon,
-    Security as SecurityIcon, } from '@mui/icons-material';
-import InvestmentCard from '../components/InvestmentCard';
-import SkeletonCard from '../components/SkeletonCard';
+import {
+  Person as PersonIcon,
+  Notifications as NotificationsIcon,
+  Search as SearchIcon,
+  AddCircleOutline as AddCircleOutlineIcon,
+  RemoveCircleOutline as RemoveCircleOutlineIcon,
+  TrendingUp as TrendingUpIcon,
+  MoreHoriz as MoreHorizIcon,
+  Security as SecurityIcon,
+} from '@mui/icons-material';
+import InvestmentCategories from '../components/InvestmentCategories';
 import { motion } from 'framer-motion';
-
-const stockIcon = '/assets/stock.png';
-const cryptoIcon = '/assets/crypto.png';
-const realEstateIcon = '/assets/real-estate.png';
 
 const Home = () => {
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  const investments = [
-    {
-      title: 'Stock Portfolio',
-      amount: '$12,450.75',
-      icon: stockIcon,
-      gradient: 'linear-gradient(135deg, #2FDB6D, #2087EC)',
-    },
-    {
-      title: 'Crypto Holdings',
-      amount: '$8,230.10',
-      icon: cryptoIcon,
-      gradient: 'linear-gradient(135deg, #2087EC, #D951D5)',
-    },
-    {
-      title: 'Real Estate Fund',
-      amount: '$15,780.00',
-      icon: realEstateIcon,
-      gradient: 'linear-gradient(135deg, #D951D5, #FE4600)',
-    },
-  ];
-
-   // Generate random KSH amount between 10,000 and 100,000
-   const randomKSH = `KSH ${(Math.floor(Math.random() * (100000 - 10000 + 1)) + 10000).toLocaleString()}`;
+  // Generate random KSH amount between 10,000 and 100,000
+  const randomKSH = `KSH ${(Math.floor(Math.random() * (100000 - 10000 + 1)) + 10000).toLocaleString()}`;
 
   return (
     <Box>
@@ -74,7 +54,7 @@ const Home = () => {
           }}
         >
           <CardContent sx={{ display: 'flex', alignItems: 'center', p: 0 }}>
-            <IconButton sx={{ fontSize: '1rem', backgroundColor:'#fff' }}>
+            <IconButton sx={{ fontSize: '1rem', backgroundColor: '#fff' }}>
               <PersonIcon />
             </IconButton>
             <Paper
@@ -93,12 +73,14 @@ const Home = () => {
                 sx={{ ml: 1, flex: 1, color: '#fff', fontFamily: 'Inter, sans-serif' }}
                 placeholder="Search investments..."
                 inputProps={{ 'aria-label': 'search investments' }}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
               <IconButton sx={{ color: '#fff', p: '4px' }}>
                 <SearchIcon sx={{ fontSize: '1.5rem' }} />
-              </IconButton >
+              </IconButton>
             </Paper>
-            <IconButton sx={{ fontSize: '1rem', backgroundColor:'#fff' }}>
+            <IconButton sx={{ fontSize: '1rem', backgroundColor: '#fff' }}>
               <NotificationsIcon />
             </IconButton>
           </CardContent>
@@ -123,15 +105,20 @@ const Home = () => {
               py: 0.5,
               borderRadius: 8,
               backgroundColor: '#fff',
-              width: 'fit-content',
+              maxWidth: '120px',
+              display: 'flex',
+              flexWrap: 'nowrap',
+              justifyContent: 'center',
+              alignItems: 'flex-start',
             }}
           >
             <Typography
               sx={{
-                fontSize: '0.8rem',
+                fontSize: '0.7rem',
                 color: '#2FDB6D',
                 fontFamily: 'Inter, sans-serif',
                 fontWeight: 500,
+                textAlign: 'center',
               }}
             >
               4hrs change +2.3%
@@ -148,7 +135,6 @@ const Home = () => {
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -191,7 +177,7 @@ const Home = () => {
                 </IconButton>
                 <Typography
                   variant="caption"
-                  sx={{ color: '#000', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
+                  sx={{ color: '##000', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
                 >
                   More
                 </Typography>
@@ -199,33 +185,16 @@ const Home = () => {
             </Box>
           </Card>
           <Typography
-            
             align="center"
             sx={{ color: '#fff', mt: 2, fontFamily: 'Poppins, sans-serif', fontWeight: 600, fontSize: '0.7rem' }}
           >
-            Payoneer Investment<SecurityIcon sx={{ color: '#fff', fontSize: '0.8rem', ml: 0.5 }} />
+            Payoneer Investment
+            <SecurityIcon sx={{ color: '#fff', fontSize: '0.8rem', ml: 0.5 }} />
           </Typography>
-          
         </Card>
       </motion.div>
 
-      {loading ? (
-        <>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </>
-      ) : (
-        investments.map((inv, index) => (
-          <InvestmentCard
-            key={index}
-            title={inv.title}
-            amount={inv.amount}
-            icon={inv.icon}
-            gradient={inv.gradient}
-          />
-        ))
-      )}
+      <InvestmentCategories searchQuery={searchQuery} />
 
       <motion.div
         whileHover={{ scale: 1.05 }}

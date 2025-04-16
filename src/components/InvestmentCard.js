@@ -1,29 +1,40 @@
 import { Card, CardContent, Typography, Box } from '@mui/material';
-import { motion } from 'framer-motion';
 
-const InvestmentCard = ({ title, amount, icon, gradient }) => {
+const InvestmentCard = ({ title, amount, icon, gradient, textColor }) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <Card
-        sx={{
-          mb: 2,
-          borderRadius: 2,
-          background: gradient,
-          color: '#fff',
-          boxShadow: 3,
-        }}
-      >
-        <CardContent>
-          <Typography variant="h6">{title}</Typography>
-          <Typography variant="body2">{amount}</Typography>
-          <Box component="img" src={icon} alt={title} sx={{ width: 50, mt: 2 }} />
-        </CardContent>
-      </Card>
-    </motion.div>
+    <Card sx={{ 
+      mb: 2, 
+      background: gradient,
+      borderRadius: 2,
+      boxShadow: 2,
+    }}>
+      <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box sx={{ mr: 2 }}>
+          <img src={icon} alt={title} width="40" height="40" />
+        </Box>
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600, 
+              color: textColor,
+              fontFamily: 'Inter, sans-serif'
+            }}
+          >
+            {title}
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: textColor,
+              fontFamily: 'Roboto Mono, sans-serif'
+            }}
+          >
+            {amount}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
   );
 };
 
