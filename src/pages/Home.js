@@ -35,7 +35,7 @@ const Home = () => {
   const randomKSH = `KSH ${(Math.floor(Math.random() * (100000 - 10000 + 1)) + 10000).toLocaleString()}`;
 
   return (
-    <Box>
+    <Box sx={{ ml: 2, mr: 2, mt: 2 }}>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -196,28 +196,6 @@ const Home = () => {
 
       <InvestmentCategories searchQuery={searchQuery} />
 
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{
-            mt: 3,
-            py: 1.5,
-            background: 'linear-gradient(135deg, #F29104, #2FDB6D)',
-            color: '#fff',
-            fontWeight: 'bold',
-            borderRadius: 2,
-            '&:hover': {
-              background: 'linear-gradient(135deg, #E5C300, #2087EC)',
-            },
-          }}
-        >
-          Invest Now
-        </Button>
-      </motion.div>
     </Box>
   );
 };

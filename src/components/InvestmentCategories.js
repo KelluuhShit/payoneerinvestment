@@ -168,10 +168,10 @@ const InvestmentCategories = ({ searchQuery }) => {
           fontFamily: 'Poppins, sans-serif',
         }}
       >
-        Bitcoin Mining Machines
+        Availabe Investments 
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, ml: 3, mr: 3 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2,  }}>
         {['Popular', 'New', 'Hot'].map((filter, index) => (
           <Button
             key={index}
@@ -217,7 +217,7 @@ const InvestmentCategories = ({ searchQuery }) => {
           transition={{ duration: 0.5 }}
         >
           <Box sx={{ mb: 3 }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, ml: 3, mr: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1,}}>
               {filteredInvestments.length > 0 ? (
                 filteredInvestments.map((item, index) => (
                   <Card
