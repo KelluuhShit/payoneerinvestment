@@ -28,7 +28,6 @@ const Home = () => {
   const [balance, setBalance] = useState(0.00);
   const [selectedInvestment, setSelectedInvestment] = useState(null);
   const [hasInvested, setHasInvested] = useState(false);
-  const [showInvestModal, setShowInvestModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
@@ -171,7 +170,7 @@ const Home = () => {
               </Box>
             ) : (
               <Button
-                onClick={() => setShowInvestModal(true)}
+                onClick={() => window.scrollTo({ top: document.getElementById('available-investments').offsetTop, behavior: 'smooth' })}
                 sx={{
                   fontSize: '0.7rem',
                   color: '#2FDB6D',
@@ -259,8 +258,6 @@ const Home = () => {
       <InvestmentCategories
         searchQuery={searchQuery}
         onInvest={handleInvestment}
-        showModal={showInvestModal}
-        setShowModal={setShowInvestModal}
       />
 
     </Box>

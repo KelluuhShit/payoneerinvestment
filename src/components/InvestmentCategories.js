@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
-const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }) => {
+const InvestmentCategories = ({ searchQuery, onInvest }) => {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('Popular');
   const [openInvestModal, setOpenInvestModal] = useState(null);
@@ -30,12 +30,6 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
     const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (showModal) {
-      setOpenInvestModal({ name: 'Select an investment' });
-    }
-  }, [showModal]);
 
   // Mock data for investments (KES, with interest)
   const investments = useMemo(
@@ -177,7 +171,6 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
     console.log('Investment made:', investment);
     onInvest(investment);
     setOpenInvestModal(null);
-    setShowModal(false);
   };
 
   // Fallback image
@@ -231,7 +224,7 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
   );
 
   return (
-    <Box sx={{ mt: 1, pb: 8, }}>
+    <Box id="available-investments" sx={{ mt: 1, pb: 8, }}>
       <Typography
         variant="h6"
         sx={{
@@ -476,10 +469,7 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
       {openInvestModal && (
         <Modal
           open={!!openInvestModal}
-          onClose={() => {
-            setOpenInvestModal(null);
-            setShowModal(false);
-          }}
+          onClose={() => setOpenInvestModal(null)}
           aria-labelledby="invest-modal-title"
           aria-describedby="invest-modal-description"
         >
@@ -508,10 +498,7 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
                 Invest in {openInvestModal.name}
               </Typography>
               <IconButton
-                onClick={() => {
-                  setOpenInvestModal(null);
-                  setShowModal(false);
-                }}
+                onClick={() => setOpenInvestModal(null)}
                 aria-label="Close modal"
               >
                 <Close />
@@ -603,10 +590,7 @@ const InvestmentCategories = ({ searchQuery, onInvest, showModal, setShowModal }
             </Box>
             <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
               <Button
-                onClick={() => {
-                  setOpenInvestModal(null);
-                  setShowModal(false);
-                }}
+                onClick={() => setOpenInvestModal(null)}
                 sx={{
                   color: '#666',
                   textTransform: 'none',
