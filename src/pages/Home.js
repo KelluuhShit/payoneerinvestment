@@ -25,14 +25,56 @@ import { motion } from 'framer-motion';
 const Home = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [balance, setBalance] = useState(0.00);
+  const [selectedInvestment, setSelectedInvestment] = useState(null);
+  const [hasInvested, setHasInvested] = useState(false);
+  const [showInvestModal, setShowInvestModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Generate random KSH amount between 10,000 and 100,000
-  const randomKSH = `KSH ${(Math.floor(Math.random() * (100000 - 10000 + 1)) + 10000).toLocaleString()}`;
+  // Simulate M-Pesa deposit
+  const handleTopUp = () => {
+    const amount = prompt('Enter deposit amount (KES):', '500');
+    const deposit = parseFloat(amount);
+    if (deposit > 0) {
+      setBalance((prev) => prev + deposit);
+      console.log(`Deposited KES ${deposit.toFixed(2)}`);
+      // Store in Firestore
+      // db.collection('users').doc(userId).update({ balance: balance + deposit });
+    }
+  };
+
+  // Handle investment from InvestmentCategories
+  const handleInvestment = (investment) => {
+    if (balance >= investment.investmentAmount) {
+      setBalance((prev) => prev - investment.investmentAmount);
+      setSelectedInvestment(investment);
+      setHasInvested(true);
+      console.log('Investment selected:', investment);
+      // Store in Firestore
+      // db.collection('users').doc(userId).collection('investments').add({ ...investment, startTime: new Date() });
+    } else {
+      alert('Insufficient balance. Please top up.');
+    }
+  };
+
+  // Update balance every 4 hours
+  useEffect(() => {
+    if (hasInvested && selectedInvestment) {
+      const interval = setInterval(() => {
+        const increment = selectedInvestment.dailyIncome / 6; // 4 hours = 1/6 day
+        setBalance((prev) => {
+          const newBalance = prev + increment;
+          const maxBalance = prev + selectedInvestment.totalIncome;
+          return newBalance <= maxBalance ? newBalance : maxBalance;
+        });
+      }, 4 * 60 * 60 * 1000); // 4 hours
+      return () => clearInterval(interval);
+    }
+  }, [hasInvested, selectedInvestment]);
 
   return (
     <Box sx={{ ml: 2, mr: 2, mt: 2 }}>
@@ -94,7 +136,7 @@ const Home = () => {
               variant="body2"
               sx={{ color: '#fff', fontFamily: 'Roboto Mono, sans-serif', fontWeight: 400, mt: 1, fontSize: '2rem' }}
             >
-              {randomKSH}
+              KSH {balance.toFixed(2)}
             </Typography>
           </Box>
           <Card
@@ -112,17 +154,37 @@ const Home = () => {
               alignItems: 'flex-start',
             }}
           >
-            <Typography
-              sx={{
-                fontSize: '0.7rem',
-                color: '#2FDB6D',
-                fontFamily: 'Inter, sans-serif',
-                fontWeight: 500,
-                textAlign: 'center',
-              }}
-            >
-              4hrs change +2.3%
-            </Typography>
+            {hasInvested && selectedInvestment ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <TrendingUpIcon sx={{ fontSize: '1rem', color: '#2FDB6D' }} />
+                <Typography
+                  sx={{
+                    fontSize: '0.7rem',
+                    color: '#2FDB6D',
+                    fontFamily: 'Inter, sans-serif',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                  }}
+                >
+                  +{selectedInvestment.interest.toFixed(1)}%
+                </Typography>
+              </Box>
+            ) : (
+              <Button
+                onClick={() => setShowInvestModal(true)}
+                sx={{
+                  fontSize: '0.7rem',
+                  color: '#2FDB6D',
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 500,
+                  textAlign: 'center',
+                  textTransform: 'none',
+                }}
+                aria-label="Invest now"
+              >
+                Invest Now
+              </Button>
+            )}
           </Card>
           <Card
             sx={{
@@ -139,7 +201,7 @@ const Home = () => {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#F29104', p: 1 }}>
+                <IconButton sx={{ color: '#F29104', p: 1 }} onClick={handleTopUp}>
                   <AddCircleOutlineIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -177,7 +239,7 @@ const Home = () => {
                 </IconButton>
                 <Typography
                   variant="caption"
-                  sx={{ color: '##000', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
+                  sx={{ color: '#000', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
                 >
                   More
                 </Typography>
@@ -194,7 +256,12 @@ const Home = () => {
         </Card>
       </motion.div>
 
-      <InvestmentCategories searchQuery={searchQuery} />
+      <InvestmentCategories
+        searchQuery={searchQuery}
+        onInvest={handleInvestment}
+        showModal={showInvestModal}
+        setShowModal={setShowInvestModal}
+      />
 
     </Box>
   );
