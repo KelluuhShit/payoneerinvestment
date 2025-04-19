@@ -25,6 +25,7 @@ const InvestmentCategories = ({ searchQuery, onInvest }) => {
   const [activeFilter, setActiveFilter] = useState('Popular');
   const [openInvestModal, setOpenInvestModal] = useState(null);
   const [investmentsMade, setInvestmentsMade] = useState([]);
+  const [failedImages, setFailedImages] = useState({});
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
@@ -39,104 +40,104 @@ const InvestmentCategories = ({ searchQuery, onInvest }) => {
         activeInvestors: 5000,
         investmentPeriod: 7,
         investmentAmount: 500,
-        dailyIncome: 500 * 0.1, // KES 50
-        totalIncome: 500 * 0.1 * 7, // KES 350
-        interest: (500 * 0.1 / 500) * 100, // 10%
+        dailyIncome: 500 * 0.1,
+        totalIncome: 500 * 0.1 * 7,
+        interest: (500 * 0.1 / 500) * 100,
         isPopular: true,
         isNew: false,
         isHot: true,
-        image: '/assets/antminer-s21-hyd.jpg',
+        image: 'https://asic-miner-profitability.com/profit/images/miners/webp/bitmain_antminer_s19_hydrodesign_image3.webp',
       },
       {
         name: 'Bitmain Antminer S19 XP Hyd',
         activeInvestors: 4500,
         investmentPeriod: 7,
         investmentAmount: 1000,
-        dailyIncome: 1000 * 0.1, // KES 100
-        totalIncome: 1000 * 0.1 * 7, // KES 700
-        interest: (1000 * 0.1 / 1000) * 100, // 10%
+        dailyIncome: 1000 * 0.1,
+        totalIncome: 1000 * 0.1 * 7,
+        interest: (1000 * 0.1 / 1000) * 100,
         isPopular: true,
         isNew: false,
         isHot: false,
-        image: '/assets/antminer-s19-xp-hyd.jpg',
+        image: 'https://mining-now.s3.us-east-2.amazonaws.com/prod/asic-miner/bitmain-antminer-s19-xp-134th-s/antminer-s19-xp-ok-1708068838352.png',
       },
       {
         name: 'MicroBT Whatsminer M50S',
         activeInvestors: 4000,
         investmentPeriod: 7,
         investmentAmount: 1500,
-        dailyIncome: 1500 * 0.1, // KES 150
-        totalIncome: 1500 * 0.1 * 7, // KES 1050
-        interest: (1500 * 0.1 / 1500) * 100, // 10%
+        dailyIncome: 1500 * 0.1,
+        totalIncome: 1500 * 0.1 * 7,
+        interest: (1500 * 0.1 / 1500) * 100,
         isPopular: false,
         isNew: true,
         isHot: true,
-        image: '/assets/whatsminer-m50s.jpg',
+        image: 'https://www.theminingshop.co.uk/wp-content/uploads/2023/11/MicroBT-Whatsminer-M50-128th-MicroBT-miner-Buy-Asic-miner-Front.png',
       },
       {
         name: 'MicroBT Whatsminer M56S',
         activeInvestors: 4200,
         investmentPeriod: 7,
         investmentAmount: 2000,
-        dailyIncome: 2000 * 0.1, // KES 200
-        totalIncome: 2000 * 0.1 * 7, // KES 1400
-        interest: (2000 * 0.1 / 2000) * 100, // 10%
+        dailyIncome: 2000 * 0.1,
+        totalIncome: 2000 * 0.1 * 7,
+        interest: (2000 * 0.1 / 2000) * 100,
         isPopular: true,
         isNew: true,
         isHot: false,
-        image: '/assets/whatsminer-m56s.jpg',
+        image: 'https://viperatech.com/wp-content/uploads/2022/01/c6c1fb70-bbe0-47cb-a365-54b548a4741a_540-1-300x300.png',
       },
       {
         name: 'Canaan Avalon Made A1366',
         activeInvestors: 3800,
         investmentPeriod: 7,
         investmentAmount: 2500,
-        dailyIncome: 2500 * 0.1, // KES 250
-        totalIncome: 2500 * 0.1 * 7, // KES 1750
-        interest: (2500 * 0.1 / 2500) * 100, // 10%
+        dailyIncome: 2500 * 0.1,
+        totalIncome: 2500 * 0.1 * 7,
+        interest: (2500 * 0.1 / 2500) * 100,
         isPopular: false,
         isNew: false,
         isHot: true,
-        image: '/assets/avalon-a1366.jpg',
+        image: 'https://images.hashrate.no/ba94767e44b03fb9d2c91975495bbf8d.png',
       },
       {
         name: 'Bitmain Antminer S19j Pro',
         activeInvestors: 4100,
         investmentPeriod: 7,
         investmentAmount: 3000,
-        dailyIncome: 3000 * 0.1, // KES 300
-        totalIncome: 3000 * 0.1 * 7, // KES 2100
-        interest: (3000 * 0.1 / 3000) * 100, // 10%
+        dailyIncome: 3000 * 0.1,
+        totalIncome: 3000 * 0.1 * 7,
+        interest: (3000 * 0.1 / 3000) * 100,
         isPopular: true,
         isNew: false,
         isHot: false,
-        image: '/assets/antminer-s19j-pro.jpg',
+        image: 'https://asic-miner-profitability.com/profit/images/miners/allminer.png',
       },
       {
         name: 'MicroBT Whatsminer M63S',
         activeInvestors: 4300,
         investmentPeriod: 7,
         investmentAmount: 3500,
-        dailyIncome: 3500 * 0.1, // KES 350
-        totalIncome: 3500 * 0.1 * 7, // KES 2450
-        interest: (3500 * 0.1 / 3500) * 100, // 10%
+        dailyIncome: 3500 * 0.1,
+        totalIncome: 3500 * 0.1 * 7,
+        interest: (3500 * 0.1 / 3500) * 100,
         isPopular: false,
         isNew: true,
         isHot: true,
-        image: '/assets/whatsminer-m63s.jpg',
+        image: 'https://mining-now.s3.us-east-2.amazonaws.com/prod/asic-miner/microbt-whatsminer-m66s-310th-s/microbt-whatsminer-m66s-1709137516544.png',
       },
       {
         name: 'Bitmain Antminer S21 Pro',
         activeInvestors: 4800,
         investmentPeriod: 7,
         investmentAmount: 4000,
-        dailyIncome: 4000 * 0.1, // KES 400
-        totalIncome: 4000 * 0.1 * 7, // KES 2800
-        interest: (4000 * 0.1 / 4000) * 100, // 10%
+        dailyIncome: 4000 * 0.1,
+        totalIncome: 4000 * 0.1 * 7,
+        interest: (4000 * 0.1 / 4000) * 100,
         isPopular: true,
         isNew: false,
         isHot: false,
-        image: '/assets/antminer-s21-pro.jpg',
+        image: 'https://www.bitmart.co.za/wp-content/uploads/2024/07/Antminer-KS5Pro-21th-NEW.png',
       },
     ],
     []
@@ -174,11 +175,11 @@ const InvestmentCategories = ({ searchQuery, onInvest }) => {
   };
 
   // Fallback image
-  const fallbackImage = 'https://via.placeholder.com/120x100?text=Mining+Machine';
+  const fallbackImage = 'https://www.citypng.com/public/uploads/preview/hd-golden-bitcoin-crypto-blockchain-coin-icon-png-701751695054848jwncbhdsgf.png';
 
   const SkeletonInvestment = () => (
     <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1,  }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {Array.from({ length: Math.min(filteredInvestments.length || 2, 3) }).map(
           (_, index) => (
             <Box
@@ -224,7 +225,7 @@ const InvestmentCategories = ({ searchQuery, onInvest }) => {
   );
 
   return (
-    <Box id="available-investments" sx={{ mt: 1, pb: 8, }}>
+    <Box id="available-investments" sx={{ mt: 1, pb: 8 }}>
       <Typography
         variant="h6"
         sx={{
@@ -308,18 +309,24 @@ const InvestmentCategories = ({ searchQuery, onInvest }) => {
                     }}
                   >
                     <Box
-                      component="img"
-                      src={item.image}
-                      alt={item.name}
-                      onError={(e) => (e.target.src = fallbackImage)}
                       sx={{
                         width: { xs: '80px', sm: '120px' },
                         height: '140px',
-                        objectFit: 'cover',
+                        backgroundImage: `url(${failedImages[item.name] ? fallbackImage : item.image})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
                         borderRadius: '8px 0 0 8px',
-                        loading: 'lazy',
                       }}
-                    />
+                      aria-label={`Image of ${item.name}`}
+                    >
+                      <img
+                        src={item.image}
+                        onError={() => setFailedImages((prev) => ({ ...prev, [item.name]: true }))}
+                        style={{ display: 'none' }}
+                        alt=""
+                      />
+                    </Box>
                     <Box
                       sx={{
                         flex: 1,

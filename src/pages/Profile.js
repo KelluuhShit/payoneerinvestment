@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -24,6 +24,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [openReferralModal, setOpenReferralModal] = useState(false);
   const [openLogoutModal, setOpenLogoutModal] = useState(false);
+  const [openDownloadModal, setOpenDownloadModal] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
   const navigate = useNavigate();
 
   // Mock user data
@@ -35,7 +37,20 @@ const Profile = () => {
   };
 
   // Simulate loading
-  setTimeout(() => setLoading(false), 2000);
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Capture beforeinstallprompt event
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   // Handle copy referral link
   const handleCopyLink = () => {
@@ -50,8 +65,25 @@ const Profile = () => {
     navigate('/login');
   };
 
+  // Handle PWA installation
+  const handleInstall = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('PWA installed');
+        setInstallPrompt(null);
+      } else {
+        console.log('PWA installation dismissed');
+      }
+    } else {
+      // Show modal for non-PWA-supporting browsers
+      setOpenDownloadModal(true);
+    }
+  };
+
   const SkeletonProfile = () => (
-    <Box sx={{ mb: 3,  }}>
+    <Box sx={{ mb: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Skeleton variant="circular" width={60} height={60} />
         <Box sx={{ ml: 2 }}>
@@ -226,7 +258,7 @@ const Profile = () => {
             </Box>
           </Card>
 
-          {/* Download App */}
+          {/* Install App */}
           <Card
             sx={{
               borderRadius: 3,
@@ -242,7 +274,7 @@ const Profile = () => {
               },
             }}
             role="article"
-            aria-label="Download app"
+            aria-label="Install app"
           >
             <Typography
               variant="body1"
@@ -253,7 +285,7 @@ const Profile = () => {
                 mb: 1,
               }}
             >
-              Download App
+              Install App
             </Typography>
             <Typography
               variant="body2"
@@ -263,13 +295,11 @@ const Profile = () => {
                 mb: 2,
               }}
             >
-              Get the app for a seamless experience on iOS or Android.
+              Install the app directly from your browser for a seamless experience.
             </Typography>
             <Button
               variant="contained"
-              href="https://www.apple.com/app-store/" // Mock link
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={handleInstall}
               startIcon={<Download />}
               sx={{
                 px: 3,
@@ -290,9 +320,9 @@ const Profile = () => {
                   transition: 'all 0.2s ease-in-out',
                 },
               }}
-              aria-label="Download app"
+              aria-label="Install app"
             >
-              Download Now
+              Install Now
             </Button>
           </Card>
 
@@ -429,7 +459,7 @@ const Profile = () => {
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: { xs: '90%', sm: 400 },
+                width: { xs: '80%', sm: 400 },
                 bgcolor: '#fff',
                 borderRadius: 3,
                 boxShadow: 24,
@@ -495,6 +525,71 @@ const Profile = () => {
                   aria-label="Confirm logout"
                 >
                   Log Out
+                </Button>
+              </Box>
+            </Box>
+          </Modal>
+
+          {/* Download Modal for Non-PWA Browsers */}
+          <Modal
+            open={openDownloadModal}
+            onClose={() => setOpenDownloadModal(false)}
+            aria-labelledby="download-modal-title"
+            aria-describedby="download-modal-description"
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: { xs: '80%', sm: 400 },
+                bgcolor: '#fff',
+                borderRadius: 3,
+                boxShadow: 24,
+                p: 3,
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography
+                  id="download-modal-title"
+                  variant="h6"
+                  sx={{
+                    fontFamily: 'Poppins, sans-serif',
+                    fontWeight: 600,
+                  }}
+                >
+                  Install App
+                </Typography>
+                <IconButton
+                  onClick={() => setOpenDownloadModal(false)}
+                  aria-label="Close modal"
+                >
+                  <Close />
+                </IconButton>
+              </Box>
+              <Typography
+                id="download-modal-description"
+                variant="body2"
+                sx={{
+                  mt: 2,
+                  fontFamily: 'Inter, sans-serif',
+                  color: '#666',
+                }}
+              >
+                To install the app, please use a PWA-compatible browser like Chrome or Safari on a mobile device and select "Add to Home Screen" from the browser menu.
+              </Typography>
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button
+                  onClick={() => setOpenDownloadModal(false)}
+                  sx={{
+                    color: '#666',
+                    textTransform: 'none',
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                  aria-label="Close modal"
+                >
+                  Close
                 </Button>
               </Box>
             </Box>

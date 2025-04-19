@@ -36,7 +36,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'Bitmain Antminer S21 Hyd',
         activeInvestors: 5000,
-        image: '/assets/antminer-s21-hyd.jpg',
+        image: 'https://asic-miner-profitability.com/profit/images/miners/webp/bitmain_antminer_s19_hydrodesign_image3.webp',
         investmentPeriod: 7,
         investmentAmount: 500,
         dailyIncome: 500 * 0.1, // KES 50
@@ -48,7 +48,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'Bitmain Antminer S19 XP Hyd',
         activeInvestors: 4500,
-        image: '/assets/antminer-s19-xp-hyd.jpg',
+        image: 'https://mining-now.s3.us-east-2.amazonaws.com/prod/asic-miner/bitmain-antminer-s19-xp-134th-s/antminer-s19-xp-ok-1708068838352.png',
         investmentPeriod: 7,
         investmentAmount: 1000,
         dailyIncome: 1000 * 0.1, // KES 100
@@ -60,7 +60,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'MicroBT Whatsminer M50S',
         activeInvestors: 4000,
-        image: '/assets/whatsminer-m50s.jpg',
+        image: 'https://www.theminingshop.co.uk/wp-content/uploads/2023/11/MicroBT-Whatsminer-M50-128th-MicroBT-miner-Buy-Asic-miner-Front.png',
         investmentPeriod: 7,
         investmentAmount: 1500,
         dailyIncome: 1500 * 0.1, // KES 150
@@ -72,7 +72,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'MicroBT Whatsminer M56S',
         activeInvestors: 4200,
-        image: '/assets/whatsminer-m56s.jpg',
+        image: 'https://viperatech.com/wp-content/uploads/2022/01/c6c1fb70-bbe0-47cb-a365-54b548a4741a_540-1-300x300.png',
         investmentPeriod: 7,
         investmentAmount: 2000,
         dailyIncome: 2000 * 0.1, // KES 200
@@ -84,7 +84,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'Canaan Avalon Made A1366',
         activeInvestors: 3800,
-        image: '/assets/avalon-a1366.jpg',
+        image: 'https://images.hashrate.no/ba94767e44b03fb9d2c91975495bbf8d.png',
         investmentPeriod: 7,
         investmentAmount: 2500,
         dailyIncome: 2500 * 0.1, // KES 250
@@ -96,7 +96,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'Bitmain Antminer S19j Pro',
         activeInvestors: 4100,
-        image: '/assets/antminer-s19j-pro.jpg',
+        image: 'https://asic-miner-profitability.com/profit/images/miners/allminer.png',
         investmentPeriod: 7,
         investmentAmount: 3000,
         dailyIncome: 3000 * 0.1, // KES 300
@@ -108,7 +108,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'MicroBT Whatsminer M63S',
         activeInvestors: 4300,
-        image: '/assets/whatsminer-m63s.jpg',
+        image: 'https://mining-now.s3.us-east-2.amazonaws.com/prod/asic-miner/microbt-whatsminer-m66s-310th-s/microbt-whatsminer-m66s-1709137516544.png',
         investmentPeriod: 7,
         investmentAmount: 3500,
         dailyIncome: 3500 * 0.1, // KES 350
@@ -120,7 +120,7 @@ const Invest = ({ searchQuery }) => {
       {
         name: 'Bitmain Antminer S21 Pro',
         activeInvestors: 4800,
-        image: '/assets/antminer-s21-pro.jpg',
+        image: 'https://www.bitmart.co.za/wp-content/uploads/2024/07/Antminer-KS5Pro-21th-NEW.png',
         investmentPeriod: 7,
         investmentAmount: 4000,
         dailyIncome: 4000 * 0.1, // KES 400
