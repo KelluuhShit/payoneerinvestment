@@ -1,40 +1,75 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { auth, onAuthStateChanged } from '../service/firebase'; // Use initialized Firebase auth
-import { Box, Typography, Button, AppBar, Toolbar } from '@mui/material';
+import { useState } from 'react';
+import { Box, Typography, Button, AppBar, Toolbar, IconButton, Drawer, List, ListItem, ListItemText } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
 import { motion } from 'framer-motion';
 
 const Landing = () => {
   const navigate = useNavigate();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('userId'));
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  useEffect(() => {
-    // Listen for authentication state changes
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
-    });
-    return () => unsubscribe(); // Cleanup subscription on unmount
-  }, []);
+  const toggleDrawer = (open) => (event) => {
+    if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
+      return;
+    }
+    setDrawerOpen(open);
+  };
+
+  const drawerContent = (
+    <Box
+      sx={{ width: 250, p: 2 }}
+      role="presentation"
+      onClick={toggleDrawer(false)}
+      onKeyDown={toggleDrawer(false)}
+    >
+      <List>
+        {isAuthenticated ? (
+          <ListItem button onClick={() => navigate('/')}>
+            <ListItemText primary="Go to Dashboard" />
+          </ListItem>
+        ) : (
+          [
+            { text: 'Sign In', path: '/signin' },
+            { text: 'Sign Up', path: '/signup' },
+          ].map((item) => (
+            <ListItem button key={item.text} onClick={() => navigate(item.path)}>
+              <ListItemText primary={item.text} />
+            </ListItem>
+          ))
+        )}
+      </List>
+    </Box>
+  );
 
   return (
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #e8f0fe, #ffffff)' }}>
-      {/* Navbar */}
       <AppBar
         position="static"
-        sx={{ background: '#fff', boxShadow: 1, borderBottom: '1px solid #e0e0e0' }}
+        sx={{
+          background: '#fff',
+          boxShadow: 1,
+          borderBottom: '1px solid #e0e0e0',
+          px: { xs: 2, sm: 4 },
+        }}
       >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
+        <Toolbar sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography
             variant="h6"
-            sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, color: '#2087EC' }}
+            sx={{
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: 600,
+              color: '#2087EC',
+              flexGrow: { xs: 1, sm: 0 },
+            }}
           >
             Payoneer Investment
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 2 }}>
             {isAuthenticated ? (
               <Button
                 variant="contained"
-                onClick={() => navigate('/home')}
+                onClick={() => navigate('/')}
                 sx={{
                   borderRadius: 8,
                   background: '#2087EC',
@@ -43,6 +78,7 @@ const Landing = () => {
                   fontFamily: 'Inter, sans-serif',
                   '&:hover': { background: '#1a6dc3', transform: 'scale(1.05)' },
                 }}
+                aria-label="Go to Dashboard"
               >
                 Go to Dashboard
               </Button>
@@ -56,6 +92,7 @@ const Landing = () => {
                     fontFamily: 'Inter, sans-serif',
                     '&:hover': { color: '#1a6dc3' },
                   }}
+                  aria-label="Sign In"
                 >
                   Sign In
                 </Button>
@@ -70,16 +107,29 @@ const Landing = () => {
                     fontFamily: 'Inter, sans-serif',
                     '&:hover': { background: '#1a6dc3', transform: 'scale(1.05)' },
                   }}
+                  aria-label="Sign Up"
                 >
                   Sign Up
                 </Button>
               </>
             )}
           </Box>
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="menu"
+              onClick={toggleDrawer(true)}
+              sx={{ color: '#2087EC' }}
+            >
+              <MenuIcon />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
-
-      {/* Hero Section */}
+      <Drawer anchor="right" open={drawerOpen} onClose={toggleDrawer(false)}>
+        {drawerContent}
+      </Drawer>
       <Box
         sx={{
           display: 'flex',
@@ -105,6 +155,7 @@ const Landing = () => {
                 fontWeight: 700,
                 color: '#000',
                 mb: 2,
+                fontSize: { xs: '2rem', md: '3rem' },
               }}
             >
               Invest in Your Future with Crypto Mining
@@ -116,14 +167,14 @@ const Landing = () => {
                 color: '#666',
                 mb: 3,
                 maxWidth: '500px',
+                mx: { xs: 'auto', md: 0 },
               }}
             >
-              Join thousands of investors earning daily income through cutting-edge crypto mining
-              machines like Bitmain Antminer.
+              Join thousands of investors earning daily income through cutting-edge crypto mining machines like Bitmain Antminer.
             </Typography>
             <Button
               variant="contained"
-              onClick={() => navigate(isAuthenticated ? '/home' : '/signup')}
+              onClick={() => navigate(isAuthenticated ? '/' : '/signup')}
               sx={{
                 borderRadius: 8,
                 background: '#2087EC',
@@ -134,6 +185,7 @@ const Landing = () => {
                 py: 1.5,
                 '&:hover': { background: '#1a6dc3', transform: 'scale(1.05)' },
               }}
+              aria-label={isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
             >
               {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
             </Button>
@@ -145,23 +197,27 @@ const Landing = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Box
+            component="img"
+            src="https://static.vecteezy.com/system/resources/previews/010/877/536/non_2x/3d-illustration-ethereum-and-ring-free-png.png"
+            alt="Crypto mining illustration"
             sx={{
-              width: { xs: '100%', md: '400px' },
-              height: { xs: '200px', md: '300px' },
-              background: '#e0e0e0', // Placeholder background color
-              borderRadius: 3,
-              boxShadow: 3,
+              width: { xs: '100%', sm: '300px', md: '400px' },
+              height: { xs: '250px', sm: '300px', md: '300px' },
+              objectFit: 'contain',
             }}
-            aria-label="Crypto mining illustration"
           />
         </motion.div>
       </Box>
-
-      {/* Categories Section */}
       <Box sx={{ px: { xs: 2, sm: 4 }, py: 6, textAlign: 'center' }}>
         <Typography
           variant="h4"
-          sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, color: '#000', mb: 4 }}
+          sx={{
+            fontFamily: 'Poppins, sans-serif',
+            fontWeight: 600,
+            color: '#000',
+            mb: 4,
+            fontSize: { xs: '1.8rem', md: '2.5rem' },
+          }}
         >
           Explore Investment Opportunities
         </Typography>
@@ -172,12 +228,13 @@ const Landing = () => {
             gap: 3,
             maxWidth: '1200px',
             mx: 'auto',
+            height: '100%',
           }}
         >
           {[
-            { title: 'Crypto Mining', desc: 'Earn daily with advanced mining hardware.' },
-            { title: 'Stocks', desc: 'Invest in top-performing companies.' },
-            { title: 'Real Estate', desc: 'Build wealth through property investments.' },
+            { title: 'Crypto Mining', image: 'https://static.vecteezy.com/system/resources/previews/010/877/409/non_2x/3d-illustration-exchange-ethereum-with-dollars-free-png.png', desc: 'Earn daily with advanced mining hardware.' },
+            { title: 'Stocks', image: 'https://static.vecteezy.com/system/resources/previews/028/860/786/non_2x/growth-chart-3d-icon-for-business-free-png.png', desc: 'Invest in top-performing companies.' },
+            { title: 'Real Estate', image: 'https://static.vecteezy.com/system/resources/previews/010/877/535/non_2x/3d-illustration-box-nft-and-ethereum-free-png.png', desc: 'Build wealth through property investments.' },
           ].map((category, index) => (
             <motion.div
               key={index}
@@ -195,14 +252,14 @@ const Landing = () => {
                 }}
               >
                 <Box
+                  component="img"
+                  src={category.image}
+                  alt={`${category.title} illustration`}
                   sx={{
                     width: '100%',
-                    height: '150px',
-                    background: '#e0e0e0', // Placeholder background color
-                    borderRadius: 2,
-                    mb: 2,
+                    height: '200px',
+                    objectFit: 'contain',
                   }}
-                  aria-label={`${category.title} illustration`}
                 />
                 <Typography
                   variant="h6"
