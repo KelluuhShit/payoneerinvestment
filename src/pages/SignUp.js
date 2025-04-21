@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db, collection, addDoc, query, where, getDocs } from '../service/firebase';
 import bcrypt from 'bcryptjs';
-import { Box, Typography, TextField, Button, Alert } from '@mui/material';
+import { Box, Typography, TextField, Button, Alert, InputAdornment } from '@mui/material';
 import { motion } from 'framer-motion';
 
 const SignUp = () => {
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -17,7 +17,7 @@ const SignUp = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.name || !form.email || !form.password) {
+    if (!form.name || !form.email || !form.phone || !form.password || !form.confirmPassword) {
       setError('All fields are required.');
       return;
     }
@@ -25,8 +25,17 @@ const SignUp = () => {
       setError('Invalid email format.');
       return;
     }
+    const fullPhone = `+254${form.phone}`;
+    if (!/^\+254\d{9}$/.test(fullPhone)) {
+      setError('Phone number must be 9 digits after +254.');
+      return;
+    }
     if (form.password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
     try {
@@ -41,6 +50,7 @@ const SignUp = () => {
       await addDoc(collection(db, 'users'), {
         name: form.name,
         email: form.email,
+        phone: fullPhone,
         password: hashedPassword,
         createdAt: new Date(),
       });
@@ -60,13 +70,72 @@ const SignUp = () => {
         flexDirection: { xs: 'column', sm: 'column', md: 'row' },
         alignItems: 'center',
         justifyContent: 'center',
-        px: { xs: 1, sm: 4, md: 6 },
         py: { xs: 3, sm: 6 },
+        pt: { xs: 6, sm: 7 }, // Increased padding-top to account for fixed scroller
         gap: { xs: 3, sm: 6, md: 0 },
         boxSizing: 'border-box',
         overflowX: 'hidden',
       }}
     >
+      {/* Policy Scroller */}
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: { xs: '340px', sm: '400px' },
+          mx: 'auto',
+          overflow: 'hidden',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '24px',
+          zIndex: 1000,
+          background: 'rgba(66, 245, 164)', // Consistent background
+        }}
+      >
+        <motion.div
+          animate={{
+            x: ['0%', '-100%'],
+          }}
+          transition={{
+            x: {
+              repeat: Infinity,
+              repeatType: 'loop',
+              duration: 20,
+              ease: 'linear',
+            },
+          }}
+          style={{
+            display: 'flex',
+            whiteSpace: 'nowrap',
+            position: 'absolute',
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              color: '#666',
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              pr: 4, // Space between repeated text
+            }}
+          >
+            Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              color: '#666',
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              pr: 4, // Space between repeated text
+            }}
+          >
+            Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.
+          </Typography>
+        </motion.div>
+      </Box>
+
       {/* Left: Content and Image */}
       <Box
         sx={{
@@ -115,8 +184,6 @@ const SignUp = () => {
               width: { xs: '100%', sm: '300px', md: '400px' },
               height: { xs: '180px', sm: '250px', md: '300px' },
               objectFit: 'contain',
-              borderRadius: 3,
-              boxShadow: 3,
               mt: { xs: 2, sm: 3 },
               mx: { xs: 'auto', md: 0 },
               maxWidth: '100%',
@@ -131,7 +198,6 @@ const SignUp = () => {
         sx={{
           flex: 1,
           p: { xs: 1, sm: 3, md: 4 },
-          maxWidth: { xs: '100%', sm: '500px', md: '50%' },
           display: 'flex',
           justifyContent: 'center',
           mx: { xs: 'auto', sm: 'auto', md: 0 },
@@ -144,13 +210,11 @@ const SignUp = () => {
         >
           <Box
             sx={{
+              flex: 1,
               width: '100%',
               maxWidth: { xs: '340px', sm: '400px' },
-              minWidth: { xs: '260px', sm: '300px' },
+              minWidth: { xs: '340px', sm: '400px' },
               p: { xs: 2, sm: 3, md: 4 },
-              borderRadius: 3,
-              background: '#fff',
-              boxShadow: 3,
               boxSizing: 'border-box',
             }}
           >
@@ -202,6 +266,25 @@ const SignUp = () => {
                 variant="outlined"
               />
               <TextField
+                label="Phone Number"
+                name="phone"
+                type="tel"
+                value={form.phone}
+                onChange={handleChange}
+                required
+                fullWidth
+                placeholder="712345678"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">+254</InputAdornment>,
+                }}
+                sx={{
+                  fontFamily: 'Inter, sans-serif',
+                  '& .MuiInputBase-input': { fontSize: { xs: '0.85rem', sm: '1rem' } },
+                }}
+                aria-label="Phone number"
+                variant="outlined"
+              />
+              <TextField
                 label="Password"
                 name="password"
                 type="password"
@@ -214,6 +297,21 @@ const SignUp = () => {
                   '& .MuiInputBase-input': { fontSize: { xs: '0.85rem', sm: '1rem' } },
                 }}
                 aria-label="Password"
+                variant="outlined"
+              />
+              <TextField
+                label="Confirm Password"
+                name="confirmPassword"
+                type="password"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+                fullWidth
+                sx={{
+                  fontFamily: 'Inter, sans-serif',
+                  '& .MuiInputBase-input': { fontSize: { xs: '0.85rem', sm: '1rem' } },
+                }}
+                aria-label="Confirm password"
                 variant="outlined"
               />
               <Button

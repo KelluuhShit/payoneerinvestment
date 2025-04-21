@@ -58,11 +58,71 @@ const SignIn = () => {
         justifyContent: 'center',
         px: { xs: 1, sm: 4, md: 6 },
         py: { xs: 3, sm: 6 },
+        pt: { xs: 6, sm: 7 }, // Increased padding-top to account for fixed scroller
         gap: { xs: 3, sm: 6, md: 0 },
         boxSizing: 'border-box',
         overflowX: 'hidden',
       }}
     >
+      {/* Policy Scroller */}
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: { xs: '340px', sm: '400px' },
+          mx: 'auto',
+          overflow: 'hidden',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '24px',
+          zIndex: 1000,
+          background: 'rgba(66, 245, 164)', // Slight background for visibility
+        }}
+      >
+        <motion.div
+          animate={{
+            x: ['0%', '-100%'],
+          }}
+          transition={{
+            x: {
+              repeat: Infinity,
+              repeatType: 'loop',
+              duration: 20,
+              ease: 'linear',
+            },
+          }}
+          style={{
+            display: 'flex',
+            whiteSpace: 'nowrap',
+            position: 'absolute',
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              color: '#666',
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              pr: 4, // Space between repeated text
+            }}
+          >
+            Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              color: '#666',
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              pr: 4, // Space between repeated text
+            }}
+          >
+            Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.
+          </Typography>
+        </motion.div>
+      </Box>
+
       {/* Left: Content and Image */}
       <Box
         sx={{
@@ -111,8 +171,6 @@ const SignIn = () => {
               width: { xs: '100%', sm: '300px', md: '400px' },
               height: { xs: '180px', sm: '250px', md: '300px' },
               objectFit: 'contain',
-              borderRadius: 3,
-              boxShadow: 3,
               mt: { xs: 2, sm: 3 },
               mx: { xs: 'auto', md: 0 },
               maxWidth: '100%',
@@ -127,7 +185,6 @@ const SignIn = () => {
         sx={{
           flex: 1,
           p: { xs: 1, sm: 3, md: 4 },
-          maxWidth: { xs: '100%', sm: '500px', md: '50%' },
           display: 'flex',
           justifyContent: 'center',
           mx: { xs: 'auto', sm: 'auto', md: 0 },
@@ -142,11 +199,8 @@ const SignIn = () => {
             sx={{
               width: '100%',
               maxWidth: { xs: '340px', sm: '400px' },
-              minWidth: { xs: '260px', sm: '300px' },
+              minWidth: { xs: '340px', sm: '400px' },
               p: { xs: 2, sm: 3, md: 4 },
-              borderRadius: 3,
-              background: '#fff',
-              boxShadow: 3,
               boxSizing: 'border-box',
             }}
           >

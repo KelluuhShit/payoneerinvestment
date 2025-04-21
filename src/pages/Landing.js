@@ -261,9 +261,6 @@ const Landing = () => {
           px: { xs: 2, sm: 4 },
           py: 6,
           textAlign: 'center',
-          background: '#fff',
-          boxShadow: 2,
-          borderRadius: 3,
           maxWidth: '800px',
           mx: 'auto',
           mb: 4,
@@ -415,9 +412,6 @@ const Landing = () => {
               <Box
                 sx={{
                   p: 3,
-                  borderRadius: 3,
-                  background: '#fff',
-                  boxShadow: 2,
                   '&:hover': { boxShadow: 4, transform: 'scale(1.02)' },
                   display: 'flex',
                   flexDirection: 'column',
@@ -537,10 +531,10 @@ const Landing = () => {
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[
-                { text: 'About Us', path: '/about' },
-                { text: 'Contact', path: '/contact' },
-                { text: 'Privacy Policy', path: '/privacy' },
-                { text: 'Terms of Service', path: '/terms' },
+                { text: 'About Us', path: 'https://www.freeprivacypolicy.com/live/37e70462-1886-49dc-bd56-1d312b65d8b3' },
+                { text: 'Contact', path: 'https://www.freeprivacypolicy.com/live/37e70462-1886-49dc-bd56-1d312b65d8b3' },
+                { text: 'Privacy Policy', path: 'https://www.freeprivacypolicy.com/live/37e70462-1886-49dc-bd56-1d312b65d8b3' },
+                { text: 'Terms of Service', path: 'https://www.freeprivacypolicy.com/live/37e70462-1886-49dc-bd56-1d312b65d8b3' },
               ].map((link) => (
                 <Link
                   key={link.text}
