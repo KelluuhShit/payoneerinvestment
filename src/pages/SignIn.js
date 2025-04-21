@@ -53,19 +53,24 @@ const SignIn = () => {
         minHeight: '100vh',
         background: 'linear-gradient(180deg, #e8f0fe, #ffffff)',
         display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
+        flexDirection: { xs: 'column', sm: 'column', md: 'row' },
         alignItems: 'center',
         justifyContent: 'center',
-        px: { xs: 2, sm: 4 },
+        px: { xs: 1, sm: 4, md: 6 },
+        py: { xs: 3, sm: 6 },
+        gap: { xs: 3, sm: 6, md: 0 },
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
     >
       {/* Left: Content and Image */}
       <Box
         sx={{
           flex: 1,
-          p: { xs: 2, md: 4 },
+          p: { xs: 1, sm: 3, md: 4 },
           textAlign: { xs: 'center', md: 'left' },
-          maxWidth: { md: '50%' },
+          maxWidth: { xs: '100%', sm: '500px', md: '50%' },
+          mx: { xs: 'auto', sm: 'auto', md: 0 },
         }}
       >
         <motion.div
@@ -79,8 +84,8 @@ const SignIn = () => {
               fontFamily: 'Poppins, sans-serif',
               fontWeight: 700,
               color: '#000',
-              mb: 2,
-              fontSize: { xs: '1.8rem', md: '2.5rem' },
+              mb: { xs: 2, sm: 3 },
+              fontSize: { xs: '1.8rem', sm: '2rem', md: '2.5rem' },
             }}
           >
             Welcome Back
@@ -90,27 +95,30 @@ const SignIn = () => {
             sx={{
               fontFamily: 'Inter, sans-serif',
               color: '#666',
-              mb: 3,
-              maxWidth: '400px',
+              mb: { xs: 2, sm: 4 },
+              maxWidth: { xs: '100%', sm: '400px' },
               mx: { xs: 'auto', md: 0 },
+              fontSize: { xs: '0.9rem', sm: '1rem' },
             }}
           >
-            Log in to manage your investments in crypto, stocks, and real estate with Payoneer Investment.
+            Log in to manage your crypto mining investments with machines like Bitmain Antminer and MicroBT Whatsminer.
           </Typography>
           <Box
-  component="img"
-  src="https://static.vecteezy.com/system/resources/previews/010/877/409/non_2x/3d-illustration-exchange-ethereum-with-dollars-free-png.png"
-  alt="Investment illustration"
-  sx={{
-    width: { xs: '100%', sm: '300px', md: '400px' },
-    height: { xs: '200px', md: '300px' },
-    objectFit: 'contain',
-    mt: 2,
-    mx: { xs: 'auto', md: 0 },
-    boxShadow: 0, // Ensure this is set to 0
-    borderRadius: 0, // Ensure this is set to 0
-  }}
-/>
+            component="img"
+            src="https://asic-miner-profitability.com/profit/images/miners/webp/bitmain_antminer_s19_hydrodesign_image3.webp"
+            alt="Bitmain Antminer illustration"
+            sx={{
+              width: { xs: '100%', sm: '300px', md: '400px' },
+              height: { xs: '180px', sm: '250px', md: '300px' },
+              objectFit: 'contain',
+              borderRadius: 3,
+              boxShadow: 3,
+              mt: { xs: 2, sm: 3 },
+              mx: { xs: 'auto', md: 0 },
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+            }}
+          />
         </motion.div>
       </Box>
 
@@ -118,10 +126,11 @@ const SignIn = () => {
       <Box
         sx={{
           flex: 1,
-          p: { xs: 2, md: 4 },
-          maxWidth: { md: '50%' },
+          p: { xs: 1, sm: 3, md: 4 },
+          maxWidth: { xs: '100%', sm: '500px', md: '50%' },
           display: 'flex',
           justifyContent: 'center',
+          mx: { xs: 'auto', sm: 'auto', md: 0 },
         }}
       >
         <motion.div
@@ -131,33 +140,46 @@ const SignIn = () => {
         >
           <Box
             sx={{
-              width: { xs: '100%', sm: '400px' },
-              p: 4,
+              width: '100%',
+              maxWidth: { xs: '340px', sm: '400px' },
+              minWidth: { xs: '260px', sm: '300px' },
+              p: { xs: 2, sm: 3, md: 4 },
               borderRadius: 3,
               background: '#fff',
               boxShadow: 3,
+              boxSizing: 'border-box',
             }}
           >
             <Typography
               variant="h5"
-              sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600, color: '#000', mb: 3 }}
+              sx={{
+                fontFamily: 'Poppins, sans-serif',
+                fontWeight: 600,
+                color: '#000',
+                mb: { xs: 2, sm: 3 },
+                fontSize: { xs: '1.5rem', sm: '1.75rem' },
+              }}
             >
               Sign In
             </Typography>
             {error && (
-              <Alert severity="error" sx={{ mb: 2, fontFamily: 'Inter, sans-serif' }}>
+              <Alert severity="error" sx={{ mb: 2, fontFamily: 'Inter, sans-serif', fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                 {error}
               </Alert>
             )}
-            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
               <TextField
                 label="Email"
                 name="email"
                 type="email"
                 value={form.email}
                 onChange={handleChange}
+                required
                 fullWidth
-                sx={{ fontFamily: 'Inter, sans-serif' }}
+                sx={{
+                  fontFamily: 'Inter, sans-serif',
+                  '& .MuiInputBase-input': { fontSize: { xs: '0.85rem', sm: '1rem' } },
+                }}
                 aria-label="Email address"
                 variant="outlined"
               />
@@ -167,8 +189,12 @@ const SignIn = () => {
                 type="password"
                 value={form.password}
                 onChange={handleChange}
+                required
                 fullWidth
-                sx={{ fontFamily: 'Inter, sans-serif' }}
+                sx={{
+                  fontFamily: 'Inter, sans-serif',
+                  '& .MuiInputBase-input': { fontSize: { xs: '0.85rem', sm: '1rem' } },
+                }}
                 aria-label="Password"
                 variant="outlined"
               />
@@ -181,7 +207,8 @@ const SignIn = () => {
                   color: '#fff',
                   textTransform: 'none',
                   fontFamily: 'Inter, sans-serif',
-                  py: 1.5,
+                  py: { xs: 0.75, sm: 1.5 },
+                  fontSize: { xs: '0.85rem', sm: '1rem' },
                   '&:hover': { background: '#1a6dc3', transform: 'scale(1.05)' },
                 }}
               >
@@ -190,7 +217,13 @@ const SignIn = () => {
             </Box>
             <Typography
               variant="body2"
-              sx={{ mt: 2, textAlign: 'center', fontFamily: 'Inter, sans-serif', color: '#666' }}
+              sx={{
+                mt: { xs: 1.5, sm: 2 },
+                textAlign: 'center',
+                fontFamily: 'Inter, sans-serif',
+                color: '#666',
+                fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              }}
             >
               Don’t have an account?{' '}
               <Link to="/signup" style={{ color: '#2087EC', textDecoration: 'none' }}>
