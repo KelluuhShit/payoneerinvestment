@@ -40,7 +40,7 @@ const SignIn = () => {
         return;
       }
       localStorage.setItem('userId', userDoc.id);
-      navigate('/');
+      navigate('/home');
     } catch (err) {
       setError('Failed to sign in. Please try again.');
       console.error(err);
@@ -58,7 +58,7 @@ const SignIn = () => {
         justifyContent: 'center',
         px: { xs: 1, sm: 4, md: 6 },
         py: { xs: 3, sm: 6 },
-        pt: { xs: 6, sm: 7 }, // Increased padding-top to account for fixed scroller
+        pt: { xs: 6, sm: 7 },
         gap: { xs: 3, sm: 6, md: 0 },
         boxSizing: 'border-box',
         overflowX: 'hidden',
@@ -77,7 +77,7 @@ const SignIn = () => {
           right: 0,
           height: '24px',
           zIndex: 1000,
-          background: 'rgba(66, 245, 164)', // Slight background for visibility
+          background: 'rgba(66, 245, 164)',
         }}
       >
         <motion.div
@@ -104,7 +104,7 @@ const SignIn = () => {
               fontFamily: 'Inter, sans-serif',
               color: '#666',
               fontSize: { xs: '0.8rem', sm: '0.875rem' },
-              pr: 4, // Space between repeated text
+              pr: 4,
             }}
           >
             Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.
@@ -115,7 +115,7 @@ const SignIn = () => {
               fontFamily: 'Inter, sans-serif',
               color: '#666',
               fontSize: { xs: '0.8rem', sm: '0.875rem' },
-              pr: 4, // Space between repeated text
+              pr: 4,
             }}
           >
             Payoneer Investment is a certified platform with over 50,000 investors. Earn a guaranteed 10% daily interest. Funds are withdrawable after 7 days of placing your investment.

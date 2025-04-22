@@ -54,7 +54,7 @@ const SignUp = () => {
         password: hashedPassword,
         createdAt: new Date(),
       });
-      navigate('/');
+      navigate('/signin');
     } catch (err) {
       setError('Failed to create account. Please try again.');
       console.error(err);

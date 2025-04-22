@@ -29,6 +29,7 @@ import {
 import InvestmentCategories from '../components/InvestmentCategories';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { db, doc, getDoc, updateDoc, addDoc, collection } from '../service/firebase';
 
 const Home = () => {
   const [loading, setLoading] = useState(true);
@@ -45,22 +46,45 @@ const Home = () => {
   const [openNotificationsModal, setOpenNotificationsModal] = useState(false);
   const [openShareModal, setOpenShareModal] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // Mock user data (sync with Profile.js)
-  const user = {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    referralCode: 'REF123',
-    referralLink: 'https://app.example.com/ref/REF123',
-  };
-
-  // Simulate loading
+  // Validate authentication and fetch user data on mount
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    const checkAuthAndFetchUser = async () => {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        navigate('/signin', { replace: true });
+        return;
+      }
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (!userDoc.exists()) {
+          localStorage.removeItem('userId');
+          navigate('/signin', { replace: true });
+          return;
+        }
+        const userData = userDoc.data();
+        setUser({
+          name: userData.name || 'Unknown User',
+          email: userData.email || 'No email provided',
+          referralCode: userData.referralCode || 'REF000',
+          referralLink:
+            userData.referralLink ||
+            `https://payoneerinvestment.vercel.app/${userData.referralCode || 'REF000'}`,
+        });
+        setBalance(userData.balance || 0.00);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching user:', err);
+        localStorage.removeItem('userId');
+        navigate('/signin', { replace: true });
+      }
+    };
+    checkAuthAndFetchUser();
+  }, [navigate]);
 
+  // Remove simulated loading (replaced by user fetch)
   // Capture beforeinstallprompt event for PWA
   useEffect(() => {
     const handler = (e) => {
@@ -79,30 +103,51 @@ const Home = () => {
     setTopUpSuccess('');
   };
 
-  const handleConfirmTopUp = () => {
+  const handleConfirmTopUp = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) {
       setTopUpError('Please enter a valid amount.');
       return;
     }
-    setBalance((prev) => prev + amount);
+    const newBalance = balance + amount;
+    setBalance(newBalance);
     setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
     setTopUpError('');
     console.log(`Deposited KES ${amount.toFixed(2)}`);
-    // Store in Firestore
-    // db.collection('users').doc(userId).update({ balance: balance + amount });
+    // Update balance in Firestore
+    const userId = localStorage.getItem('userId');
+    try {
+      await updateDoc(doc(db, 'users', userId), { balance: newBalance });
+    } catch (err) {
+      console.error('Error updating balance:', err);
+      setTopUpError('Failed to update balance. Please try again.');
+      setBalance(balance); // Revert on error
+      return;
+    }
     setTimeout(() => setOpenTopUpModal(false), 1000); // Close after 1s
   };
 
   // Handle investment from InvestmentCategories
-  const handleInvestment = (investment) => {
+  const handleInvestment = async (investment) => {
     if (balance >= investment.investmentAmount) {
-      setBalance((prev) => prev - investment.investmentAmount);
+      const newBalance = balance - investment.investmentAmount;
+      setBalance(newBalance);
       setSelectedInvestment(investment);
       setHasInvested(true);
       console.log('Investment selected:', investment);
-      // Store in Firestore
-      // db.collection('users').doc(userId).collection('investments').add({ ...investment, startTime: new Date() });
+      // Update balance and store investment in Firestore
+      const userId = localStorage.getItem('userId');
+      try {
+        await updateDoc(doc(db, 'users', userId), { balance: newBalance });
+        await addDoc(collection(db, 'users', userId, 'investments'), {
+          ...investment,
+          startTime: new Date(),
+        });
+      } catch (err) {
+        console.error('Error saving investment:', err);
+        setBalance(balance); // Revert on error
+        return;
+      }
     } else {
       setOpenBalanceModal(true);
     }
@@ -111,22 +156,32 @@ const Home = () => {
   // Update balance every 4 hours
   useEffect(() => {
     if (hasInvested && selectedInvestment) {
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         const increment = selectedInvestment.dailyIncome / 6; // 4 hours = 1/6 day
-        setBalance((prev) => {
-          const newBalance = prev + increment;
-          const maxBalance = prev + selectedInvestment.totalIncome;
-          return newBalance <= maxBalance ? newBalance : maxBalance;
-        });
+        const newBalance = balance + increment;
+        const maxBalance = balance + selectedInvestment.totalIncome;
+        const updatedBalance = newBalance <= maxBalance ? newBalance : maxBalance;
+        setBalance(updatedBalance);
+        // Update balance in Firestore
+        const userId = localStorage.getItem('userId');
+        try {
+          await updateDoc(doc(db, 'users', userId), { balance: updatedBalance });
+        } catch (err) {
+          console.error('Error updating balance:', err);
+        }
       }, 4 * 60 * 60 * 1000); // 4 hours
       return () => clearInterval(interval);
     }
-  }, [hasInvested, selectedInvestment]);
+  }, [hasInvested, selectedInvestment, balance]);
 
   // Handle copy referral link
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(user.referralLink);
-    alert('Referral link copied to clipboard!');
+    if (user?.referralLink) {
+      navigator.clipboard.writeText(user.referralLink);
+      alert('Referral link copied to clipboard!');
+    } else {
+      alert('Referral link not available.');
+    }
   };
 
   // Handle PWA installation
@@ -150,7 +205,7 @@ const Home = () => {
     const shareData = {
       title: 'Payoneer Investment',
       text: 'Join me on Payoneer Investment to start investing today!',
-      url: 'https://app.example.com',
+      url: user?.referralLink || 'https://payoneerinvestment.vercel.app/',
     };
     if (navigator.share) {
       try {
@@ -166,10 +221,13 @@ const Home = () => {
 
   // Handle log out
   const handleLogout = () => {
-    // Mock: Clear auth state (replace with Firebase Auth)
-    // auth.signOut();
-    navigate('/login');
+    localStorage.removeItem('userId');
+    navigate('/signin', { replace: true });
   };
+
+  if (loading || !user) {
+    return null; // Optionally render a loading spinner
+  }
 
   return (
     <Box sx={{ ml: 2, mr: 2, mt: 2 }}>
@@ -326,7 +384,9 @@ const Home = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#2FDB6D', p: 1 }}>
+                <IconButton sx={{ color: '#2FDB6D', p: 1 }}
+                onClick={() => navigate('/assets')}
+                >
                   <TrendingUpIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -337,7 +397,9 @@ const Home = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#2087EC', p: 1 }}>
+                <IconButton sx={{ color: '#2087EC', p: 1 }}
+                onClick={() => navigate('/invest')}
+                >
                   <MoreHorizIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -566,13 +628,10 @@ const Home = () => {
               <Typography
                 sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#2087EC' }}
               >
-                https://app.example.com
+                {user.referralLink || 'https://app.example.com'}
               </Typography>
               <IconButton
-                onClick={() => {
-                  navigator.clipboard.writeText('https://app.example.com');
-                  alert('Link copied to clipboard!');
-                }}
+                onClick={handleCopyLink}
                 aria-label="Copy app link"
                 sx={{ color: '#2087EC' }}
               >

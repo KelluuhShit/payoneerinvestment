@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -21,7 +21,6 @@ import FacebookIcon from '@mui/icons-material/Facebook';
 import TwitterIcon from '@mui/icons-material/Twitter';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import { motion, useAnimation } from 'framer-motion';
-import { useEffect } from 'react';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -68,7 +67,7 @@ const Landing = () => {
     >
       <List>
         {isAuthenticated ? (
-          <ListItem button onClick={() => navigate('/')}>
+          <ListItem button onClick={() => navigate('/home')}>
             <ListItemText primary="Go to Dashboard" />
           </ListItem>
         ) : (
@@ -89,12 +88,13 @@ const Landing = () => {
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #e8f0fe, #ffffff)' }}>
       {/* Header */}
       <AppBar
-        position="static"
+        position="fixed"
         sx={{
           background: '#fff',
           boxShadow: 1,
           borderBottom: '1px solid #e0e0e0',
           px: { xs: 2, sm: 4 },
+          zIndex: 1200,
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -113,7 +113,7 @@ const Landing = () => {
             {isAuthenticated ? (
               <Button
                 variant="contained"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/home')}
                 sx={{
                   borderRadius: 8,
                   background: '#2087EC',
@@ -171,6 +171,11 @@ const Landing = () => {
           </Box>
         </Toolbar>
       </AppBar>
+
+      
+
+      <Box sx={{ pt: { xs: 10, sm: 12 } }} />
+
       <Drawer anchor="right" open={drawerOpen} onClose={toggleDrawer(false)}>
         {drawerContent}
       </Drawer>
@@ -220,7 +225,7 @@ const Landing = () => {
             </Typography>
             <Button
               variant="contained"
-              onClick={() => navigate(isAuthenticated ? '/' : '/signup')}
+              onClick={() => navigate(isAuthenticated ? '/home' : '/signup')}
               sx={{
                 borderRadius: 8,
                 background: '#2087EC',
@@ -338,7 +343,7 @@ const Landing = () => {
         </Typography>
         <Button
           variant="contained"
-          onClick={() => navigate(isAuthenticated ? '/' : '/signup')}
+          onClick={() => navigate(isAuthenticated ? '/home' : '/signup')}
           sx={{
             mt: 3,
             borderRadius: 8,
@@ -453,7 +458,7 @@ const Landing = () => {
                 </Typography>
                 <Button
                   variant="outlined"
-                  onClick={() => navigate(isAuthenticated ? '/' : '/signup')}
+                  onClick={() => navigate(isAuthenticated ? '/home' : '/signup')}
                   sx={{
                     borderRadius: 8,
                     borderColor: '#2087EC',
