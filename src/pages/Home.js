@@ -10,6 +10,7 @@ import {
   Paper,
   Modal,
   TextField,
+  CircularProgress,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -29,7 +30,10 @@ import {
 import InvestmentCategories from '../components/InvestmentCategories';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { db, doc, getDoc, updateDoc, addDoc, collection } from '../service/firebase';
+import { db, doc, getDoc, updateDoc, addDoc, collection, runTransaction, serverTimestamp } from '../service/firebase';
+import axios from 'axios';
+
+const API_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://payoneerinvestment.vercel.app/' : 'http://localhost:3000';
 
 const Home = () => {
   const [loading, setLoading] = useState(true);
@@ -38,9 +42,15 @@ const Home = () => {
   const [selectedInvestment, setSelectedInvestment] = useState(null);
   const [hasInvested, setHasInvested] = useState(false);
   const [openTopUpModal, setOpenTopUpModal] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
+  const [openWithdrawModal, setOpenWithdrawModal] = useState(false);
+  const [depositData, setDepositData] = useState({ phoneNumber: '', amount: '' });
+  const [withdrawData, setWithdrawData] = useState({ phoneNumber: '', amount: '' });
   const [topUpError, setTopUpError] = useState('');
   const [topUpSuccess, setTopUpSuccess] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState('');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [openBalanceModal, setOpenBalanceModal] = useState(false);
   const [openProfileModal, setOpenProfileModal] = useState(false);
   const [openNotificationsModal, setOpenNotificationsModal] = useState(false);
@@ -66,6 +76,7 @@ const Home = () => {
         }
         const userData = userDoc.data();
         setUser({
+          id: userId,
           name: userData.name || 'Unknown User',
           email: userData.email || 'No email provided',
           referralCode: userData.referralCode || 'REF000',
@@ -84,7 +95,6 @@ const Home = () => {
     checkAuthAndFetchUser();
   }, [navigate]);
 
-  // Remove simulated loading (replaced by user fetch)
   // Capture beforeinstallprompt event for PWA
   useEffect(() => {
     const handler = (e) => {
@@ -98,33 +108,179 @@ const Home = () => {
   // Handle Top Up modal
   const handleTopUp = () => {
     setOpenTopUpModal(true);
-    setDepositAmount('');
+    setDepositData({ phoneNumber: '', amount: '' });
     setTopUpError('');
     setTopUpSuccess('');
   };
 
+  // Handle Withdraw modal
+  const handleWithdraw = () => {
+    setOpenWithdrawModal(true);
+    setWithdrawData({ phoneNumber: '', amount: '' });
+    setWithdrawError('');
+    setWithdrawSuccess('');
+  };
+
+  // Handle deposit
   const handleConfirmTopUp = async () => {
-    const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0) {
-      setTopUpError('Please enter a valid amount.');
+    if (!depositData.phoneNumber || !depositData.amount) {
+      setTopUpError('Please enter phone number and amount.');
       return;
     }
-    const newBalance = balance + amount;
-    setBalance(newBalance);
-    setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
+    const phoneRegex = /^(?:254|0)7\d{8}$/;
+    if (!phoneRegex.test(depositData.phoneNumber)) {
+      setTopUpError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
+      return;
+    }
+    const amount = Number(depositData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setTopUpError('Amount must be a positive number.');
+      return;
+    }
+    setDepositLoading(true);
     setTopUpError('');
-    console.log(`Deposited KES ${amount.toFixed(2)}`);
-    // Update balance in Firestore
-    const userId = localStorage.getItem('userId');
+    setTopUpSuccess('');
     try {
-      await updateDoc(doc(db, 'users', userId), { balance: newBalance });
+      const reference = `DEP-${Date.now()}-${user.id}`;
+      const response = await axios.post(`${API_BASE_URL}/api/payhero-stk-push`, {
+        phoneNumber: depositData.phoneNumber,
+        amount,
+        reference,
+      });
+      if (response.data.success) {
+        const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+          type: 'deposit',
+          amount,
+          status: 'QUEUED',
+          reference,
+          createdAt: serverTimestamp(),
+        });
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
+            const { status } = statusResponse.data;
+            await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+            if (status === 'SUCCESS') {
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', user.id);
+                const userDoc = await transaction.get(userRef);
+                const newBalance = (userDoc.data().balance || 0) + amount;
+                transaction.update(userRef, { balance: newBalance });
+                transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+              });
+              setBalance((prev) => prev + amount);
+              setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
+              clearInterval(interval);
+              setDepositData({ phoneNumber: '', amount: '' });
+              setTimeout(() => setOpenTopUpModal(false), 1000);
+            } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
+              setTopUpError(`Deposit ${status.toLowerCase()}.`);
+              clearInterval(interval);
+            }
+          } catch (err) {
+            console.error('Status poll error:', err.message);
+            if (attempts >= 30) {
+              setTopUpError('Deposit timed out.');
+              clearInterval(interval);
+            }
+          }
+        }, 5000);
+      } else {
+        setTopUpError(response.data.error || 'Failed to initiate deposit.');
+      }
     } catch (err) {
-      console.error('Error updating balance:', err);
-      setTopUpError('Failed to update balance. Please try again.');
-      setBalance(balance); // Revert on error
+      console.error('Deposit error:', err);
+      if (err.response?.status === 404) {
+        setTopUpError('Deposit API not found. Please check server configuration.');
+      } else {
+        setTopUpError(err.response?.data?.error || 'Network error. Please try again.');
+      }
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  // Handle withdrawal
+  const handleConfirmWithdraw = async () => {
+    if (!withdrawData.phoneNumber || !withdrawData.amount) {
+      setWithdrawError('Please enter phone number and amount.');
       return;
     }
-    setTimeout(() => setOpenTopUpModal(false), 1000); // Close after 1s
+    const phoneRegex = /^(?:254|0)7\d{8}$/;
+    if (!phoneRegex.test(withdrawData.phoneNumber)) {
+      setWithdrawError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
+      return;
+    }
+    const amount = Number(withdrawData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError('Amount must be a positive number.');
+      return;
+    }
+    if (amount > balance) {
+      setWithdrawError('Insufficient balance.');
+      return;
+    }
+    setWithdrawLoading(true);
+    setWithdrawError('');
+    setWithdrawSuccess('');
+    try {
+      const reference = `WDR-${Date.now()}-${user.id}`;
+      const response = await axios.post(`${API_BASE_URL}/api/payhero-payout`, {
+        phoneNumber: withdrawData.phoneNumber,
+        amount,
+        reference,
+        userId: user.id,
+      });
+      if (response.data.success) {
+        const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+          type: 'withdrawal',
+          amount,
+          status: 'QUEUED',
+          reference,
+          createdAt: serverTimestamp(),
+        });
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
+            const { status } = statusResponse.data;
+            await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+            if (status === 'SUCCESS') {
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', user.id);
+                const userDoc = await transaction.get(userRef);
+                const newBalance = (userDoc.data().balance || 0) - amount;
+                transaction.update(userRef, { balance: newBalance });
+                transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+              });
+              setBalance((prev) => prev - amount);
+              setWithdrawSuccess(`Withdrawn KES ${amount.toFixed(2)} successfully.`);
+              clearInterval(interval);
+              setWithdrawData({ phoneNumber: '', amount: '' });
+              setTimeout(() => setOpenWithdrawModal(false), 1000);
+            } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
+              setWithdrawError(`Withdrawal ${status.toLowerCase()}.`);
+              clearInterval(interval);
+            }
+          } catch (err) {
+            console.error('Status poll error:', err);
+            if (attempts >= 30) {
+              setWithdrawError('Withdrawal timed out.');
+              clearInterval(interval);
+            }
+          }
+        }, 5000);
+      } else {
+        setWithdrawError(response.data.error || 'Failed to initiate withdrawal.');
+      }
+    } catch (err) {
+      setWithdrawError(err.response?.data?.error || 'An error occurred during withdrawal.');
+    } finally {
+      setWithdrawLoading(false);
+    }
   };
 
   // Handle investment from InvestmentCategories
@@ -135,7 +291,6 @@ const Home = () => {
       setSelectedInvestment(investment);
       setHasInvested(true);
       console.log('Investment selected:', investment);
-      // Update balance and store investment in Firestore
       const userId = localStorage.getItem('userId');
       try {
         await updateDoc(doc(db, 'users', userId), { balance: newBalance });
@@ -145,7 +300,7 @@ const Home = () => {
         });
       } catch (err) {
         console.error('Error saving investment:', err);
-        setBalance(balance); // Revert on error
+        setBalance(balance);
         return;
       }
     } else {
@@ -157,19 +312,18 @@ const Home = () => {
   useEffect(() => {
     if (hasInvested && selectedInvestment) {
       const interval = setInterval(async () => {
-        const increment = selectedInvestment.dailyIncome / 6; // 4 hours = 1/6 day
+        const increment = selectedInvestment.dailyIncome / 6;
         const newBalance = balance + increment;
         const maxBalance = balance + selectedInvestment.totalIncome;
         const updatedBalance = newBalance <= maxBalance ? newBalance : maxBalance;
         setBalance(updatedBalance);
-        // Update balance in Firestore
         const userId = localStorage.getItem('userId');
         try {
           await updateDoc(doc(db, 'users', userId), { balance: updatedBalance });
         } catch (err) {
           console.error('Error updating balance:', err);
         }
-      }, 4 * 60 * 60 * 1000); // 4 hours
+      }, 4 * 60 * 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [hasInvested, selectedInvestment, balance]);
@@ -226,7 +380,11 @@ const Home = () => {
   };
 
   if (loading || !user) {
-    return null; // Optionally render a loading spinner
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   return (
@@ -373,7 +531,7 @@ const Home = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#FE4600', p: 1 }}>
+                <IconButton sx={{ color: '#FE4600', p: 1 }} onClick={handleWithdraw}>
                   <RemoveCircleOutlineIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -384,9 +542,7 @@ const Home = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#2FDB6D', p: 1 }}
-                onClick={() => navigate('/assets')}
-                >
+                <IconButton sx={{ color: '#2FDB6D', p: 1 }} onClick={() => navigate('/assets')}>
                   <TrendingUpIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -397,9 +553,7 @@ const Home = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton sx={{ color: '#2087EC', p: 1 }}
-                onClick={() => navigate('/invest')}
-                >
+                <IconButton sx={{ color: '#2087EC', p: 1 }} onClick={() => navigate('/invest')}>
                   <MoreHorizIcon sx={{ fontSize: '1.5rem' }} />
                 </IconButton>
                 <Typography
@@ -421,7 +575,6 @@ const Home = () => {
         </Card>
       </motion.div>
 
-      {/* Profile Modal */}
       <Modal
         open={openProfileModal}
         onClose={() => setOpenProfileModal(false)}
@@ -544,7 +697,6 @@ const Home = () => {
         </Box>
       </Modal>
 
-      {/* Notifications Modal */}
       <Modal
         open={openNotificationsModal}
         onClose={() => setOpenNotificationsModal(false)}
@@ -586,7 +738,6 @@ const Home = () => {
         </Box>
       </Modal>
 
-      {/* Share Modal (Fallback for non-Web Share browsers) */}
       <Modal
         open={openShareModal}
         onClose={() => setOpenShareModal(false)}
@@ -628,7 +779,7 @@ const Home = () => {
               <Typography
                 sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#2087EC' }}
               >
-                {user.referralLink || 'https://app.example.com'}
+                {user.referralLink || 'https://payoneerinvestment.vercel.app'}
               </Typography>
               <IconButton
                 onClick={handleCopyLink}
@@ -642,7 +793,6 @@ const Home = () => {
         </Box>
       </Modal>
 
-      {/* Top Up Modal */}
       <Modal
         open={openTopUpModal}
         onClose={() => setOpenTopUpModal(false)}
@@ -668,21 +818,30 @@ const Home = () => {
               variant="h6"
               sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}
             >
-              Top Up Balance
+              Deposit Funds
             </Typography>
             <IconButton onClick={() => setOpenTopUpModal(false)} aria-label="Close modal">
               <CloseIcon />
             </IconButton>
           </Box>
-          <Box id="top-up-modal-description" sx={{ mt: 2 }}>
+          <Box id="top-up-modal-description" sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Phone Number (07XXXXXXXX or 254XXXXXXXXX)"
+              value={depositData.phoneNumber}
+              onChange={(e) => setDepositData({ ...depositData, phoneNumber: e.target.value })}
+              disabled={depositLoading}
+              error={!!topUpError}
+              helperText={topUpError}
+            />
             <TextField
               fullWidth
               label="Deposit Amount (KES)"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
+              value={depositData.amount}
+              onChange={(e) => setDepositData({ ...depositData, amount: e.target.value })}
               type="number"
               inputProps={{ min: 0, step: '0.01' }}
-              sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
+              disabled={depositLoading}
               error={!!topUpError}
               helperText={topUpError}
             />
@@ -707,13 +866,16 @@ const Home = () => {
                 textTransform: 'none',
                 fontFamily: 'Inter, sans-serif',
               }}
-              aria-label="Cancel top up"
+              aria-label="Cancel deposit"
+              disabled={depositLoading}
             >
               Cancel
             </Button>
             <Button
               variant="contained"
               onClick={handleConfirmTopUp}
+              startIcon={depositLoading ? <CircularProgress size={20} /> : null}
+              disabled={depositLoading}
               sx={{
                 background: '#2087EC',
                 color: '#fff',
@@ -726,15 +888,117 @@ const Home = () => {
                   transition: 'all 0.2s ease-in-out',
                 },
               }}
-              aria-label="Confirm top up"
+              aria-label="Confirm deposit"
             >
-              Confirm
+              {depositLoading ? 'Processing...' : 'Confirm'}
             </Button>
           </Box>
         </Box>
       </Modal>
 
-      {/* Insufficient Balance Modal */}
+      <Modal
+        open={openWithdrawModal}
+        onClose={() => setOpenWithdrawModal(false)}
+        aria-labelledby="withdraw-modal-title"
+        aria-describedby="withdraw-modal-description"
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: { xs: '80%', sm: 400 },
+            bgcolor: '#fff',
+            borderRadius: 3,
+            boxShadow: 24,
+            p: 3,
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography
+              id="withdraw-modal-title"
+              variant="h6"
+              sx={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}
+            >
+              Withdraw Funds
+            </Typography>
+            <IconButton onClick={() => setOpenWithdrawModal(false)} aria-label="Close modal">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          <Box id="withdraw-modal-description" sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Phone Number (07XXXXXXXX or 254XXXXXXXXX)"
+              value={withdrawData.phoneNumber}
+              onChange={(e) => setWithdrawData({ ...withdrawData, phoneNumber: e.target.value })}
+              disabled={withdrawLoading}
+              error={!!withdrawError}
+              helperText={withdrawError}
+            />
+            <TextField
+              fullWidth
+              label="Withdrawal Amount (KES)"
+              value={withdrawData.amount}
+              onChange={(e) => setWithdrawData({ ...withdrawData, amount: e.target.value })}
+              type="number"
+              inputProps={{ min: 0, step: '0.01' }}
+              disabled={withdrawLoading}
+              error={!!withdrawError}
+              helperText={withdrawError}
+            />
+            {withdrawSuccess && (
+              <Typography
+                sx={{
+                  mt: 2,
+                  color: '#2FDB6D',
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 500,
+                }}
+              >
+                {withdrawSuccess}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+              onClick={() => setOpenWithdrawModal(false)}
+              sx={{
+                color: '#666',
+                textTransform: 'none',
+                fontFamily: 'Inter, sans-serif',
+              }}
+              aria-label="Cancel withdrawal"
+              disabled={withdrawLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmWithdraw}
+              startIcon={withdrawLoading ? <CircularProgress size={20} /> : null}
+              disabled={withdrawLoading}
+              sx={{
+                background: '#2087EC',
+                color: '#fff',
+                borderRadius: 8,
+                textTransform: 'none',
+                fontFamily: 'Inter, sans-serif',
+                '&:hover': {
+                  background: '#1a6dc3',
+                  transform: 'scale(1.05)',
+                  transition: 'all 0.2s ease-in-out',
+                },
+              }}
+              aria-label="Confirm withdrawal"
+            >
+              {withdrawLoading ? 'Processing...' : 'Confirm'}
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+
       <Modal
         open={openBalanceModal}
         onClose={() => setOpenBalanceModal(false)}

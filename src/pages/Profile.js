@@ -10,6 +10,11 @@ import {
   IconButton,
   Skeleton,
   Divider,
+  TextField,
+  List,
+  ListItem,
+  ListItemText,
+  CircularProgress,
 } from '@mui/material';
 import {
   ContentCopy,
@@ -17,9 +22,13 @@ import {
   Logout,
   Person,
   Close,
+  Send,
+  ArrowUpward,
+  ArrowDownward,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { db, doc, getDoc } from '../service/firebase';
+import { db, doc, getDoc, collection, addDoc, runTransaction, serverTimestamp, updateDoc } from '../service/firebase';
+import axios from 'axios';
 
 const Profile = () => {
   const [loading, setLoading] = useState(true);
@@ -28,6 +37,12 @@ const Profile = () => {
   const [openDownloadModal, setOpenDownloadModal] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [user, setUser] = useState(null);
+  const [depositData, setDepositData] = useState({ phoneNumber: '', amount: '' });
+  const [withdrawalData, setWithdrawalData] = useState({ phoneNumber: '', amount: '' });
+  const [transactions, setTransactions] = useState([]);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   // Fetch user data and validate authentication
@@ -47,13 +62,19 @@ const Profile = () => {
         }
         const userData = userDoc.data();
         setUser({
+          id: userId,
           name: userData.name || 'Unknown User',
           email: userData.email || 'No email provided',
+          balance: userData.balance || 0,
           referralCode: userData.referralCode || 'REF000',
           referralLink:
             userData.referralLink ||
             `https://app.example.com/ref/${userData.referralCode || 'REF000'}`,
         });
+        // Fetch transactions
+        const txSnapshot = await getDoc(doc(db, 'users', userId));
+        const txData = txSnapshot.data()?.transactions || [];
+        setTransactions(txData.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate()));
         setLoading(false);
       } catch (err) {
         console.error('Error fetching user:', err);
@@ -80,7 +101,7 @@ const Profile = () => {
       navigator.clipboard.writeText(user.referralLink);
       setOpenReferralModal(true);
     } else {
-      alert('Referral link not available.');
+      setError('Referral link not available.');
     }
   };
 
@@ -102,8 +123,154 @@ const Profile = () => {
         console.log('PWA installation dismissed');
       }
     } else {
-      // Show modal for non-PWA-supporting browsers
       setOpenDownloadModal(true);
+    }
+  };
+
+  // Handle deposit
+  const handleDeposit = async () => {
+    if (!depositData.phoneNumber || !depositData.amount) {
+      setError('Please enter phone number and amount.');
+      return;
+    }
+    const amount = Number(depositData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Amount must be a positive number.');
+      return;
+    }
+    setDepositLoading(true);
+    setError('');
+    try {
+      const reference = `DEP-${Date.now()}-${user.id}`;
+      const response = await axios.post('/api/payhero-stk-push', {
+        phoneNumber: depositData.phoneNumber,
+        amount,
+        reference,
+      });
+      if (response.data.success) {
+        // Store transaction
+        const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+          type: 'deposit',
+          amount,
+          status: 'QUEUED',
+          reference,
+          createdAt: serverTimestamp(),
+        });
+        // Poll for status
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusResponse = await axios.get(`/api/transaction-status?reference=${reference}`);
+            const { status } = statusResponse.data;
+            await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+            if (status === 'SUCCESS') {
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', user.id);
+                const userDoc = await transaction.get(userRef);
+                const newBalance = (userDoc.data().balance || 0) + amount;
+                transaction.update(userRef, { balance: newBalance });
+                transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+              });
+              setUser((prev) => ({ ...prev, balance: prev.balance + amount }));
+              setTransactions((prev) =>
+                prev.map((tx) =>
+                  tx.reference === reference ? { ...tx, status } : tx
+                ).sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate())
+              );
+              clearInterval(interval);
+              setDepositData({ phoneNumber: '', amount: '' });
+            } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
+              clearInterval(interval);
+            }
+          } catch (err) {
+            console.error('Status poll error:', err);
+            if (attempts >= 30) clearInterval(interval);
+          }
+        }, 5000);
+      } else {
+        setError('Failed to initiate deposit.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'An error occurred during deposit.');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  // Handle withdrawal
+  const handleWithdrawal = async () => {
+    if (!withdrawalData.phoneNumber || !withdrawalData.amount) {
+      setError('Please enter phone number and amount.');
+      return;
+    }
+    const amount = Number(withdrawalData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Amount must be a positive number.');
+      return;
+    }
+    if (amount > user.balance) {
+      setError('Insufficient balance.');
+      return;
+    }
+    setWithdrawalLoading(true);
+    setError('');
+    try {
+      const reference = `WDR-${Date.now()}-${user.id}`;
+      const response = await axios.post('/api/payhero-payout', {
+        phoneNumber: withdrawalData.phoneNumber,
+        amount,
+        reference,
+        userId: user.id,
+      });
+      if (response.data.success) {
+        // Store transaction
+        const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+          type: 'withdrawal',
+          amount,
+          status: 'QUEUED',
+          reference,
+          createdAt: serverTimestamp(),
+        });
+        // Poll for status
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusResponse = await axios.get(`/api/transaction-status?reference=${reference}`);
+            const { status } = statusResponse.data;
+            await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+            if (status === 'SUCCESS') {
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', user.id);
+                const userDoc = await transaction.get(userRef);
+                const newBalance = (userDoc.data().balance || 0) - amount;
+                transaction.update(userRef, { balance: newBalance });
+                transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+              });
+              setUser((prev) => ({ ...prev, balance: prev.balance - amount }));
+              setTransactions((prev) =>
+                prev.map((tx) =>
+                  tx.reference === reference ? { ...tx, status } : tx
+                ).sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate())
+              );
+              clearInterval(interval);
+              setWithdrawalData({ phoneNumber: '', amount: '' });
+            } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
+              clearInterval(interval);
+            }
+          } catch (err) {
+            console.error('Status poll error:', err);
+            if (attempts >= 30) clearInterval(interval);
+          }
+        }, 5000);
+      } else {
+        setError('Failed to initiate withdrawal.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'An error occurred during withdrawal.');
+    } finally {
+      setWithdrawalLoading(false);
     }
   };
 
@@ -116,7 +283,7 @@ const Profile = () => {
           <Skeleton variant="text" width={200} sx={{ fontSize: '1rem' }} />
         </Box>
       </Box>
-      {Array.from({ length: 3 }).map((_, index) => (
+      {Array.from({ length: 5 }).map((_, index) => (
         <Box key={index} sx={{ mb: 2 }}>
           <Skeleton variant="rectangular" width="100%" height={100} sx={{ borderRadius: 3 }} />
         </Box>
@@ -196,6 +363,15 @@ const Profile = () => {
             >
               {user.email}
             </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#666',
+                fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              Balance: KES {user.balance.toFixed(2)}
+            </Typography>
           </Box>
           <Button
             variant="outlined"
@@ -216,6 +392,249 @@ const Profile = () => {
           >
             Edit Profile
           </Button>
+        </Card>
+
+        {/* Deposit */}
+        <Card
+          sx={{
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, #ffffff, #e8f0fe)',
+            border: '1px solid #e0e0e0',
+            boxShadow: 2,
+            p: 2,
+            mb: 2,
+            '&:hover': {
+              background: 'linear-gradient(180deg, #f5f5f5, #ffffff)',
+              boxShadow: 4,
+              transition: 'all 0.2s ease-in-out',
+            },
+          }}
+          role="article"
+          aria-label="Deposit funds"
+        >
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#000',
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: 600,
+              mb: 1,
+            }}
+          >
+            Deposit Funds
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#666',
+              fontFamily: 'Inter, sans-serif',
+              mb: 2,
+            }}
+          >
+            Deposit funds via M-PESA to start mining with 10% daily interest.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Phone Number (07XXXXXXXX or 254XXXXXXXXX)"
+              value={depositData.phoneNumber}
+              onChange={(e) => setDepositData({ ...depositData, phoneNumber: e.target.value })}
+              fullWidth
+              size="small"
+              disabled={depositLoading}
+            />
+            <TextField
+              label="Amount (KES)"
+              type="number"
+              value={depositData.amount}
+              onChange={(e) => setDepositData({ ...depositData, amount: e.target.value })}
+              fullWidth
+              size="small"
+              disabled={depositLoading}
+            />
+            {error && (
+              <Typography color="error" variant="body2">
+                {error}
+              </Typography>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleDeposit}
+              startIcon={depositLoading ? <CircularProgress size={20} /> : <ArrowUpward />}
+              disabled={depositLoading}
+              sx={{
+                px: 3,
+                py: 1,
+                borderRadius: 8,
+                background: 'linear-gradient(180deg, #fff, #f5f5f5)',
+                border: '1px solid #e0e0e0',
+                boxShadow: 1,
+                textTransform: 'none',
+                color: '#000',
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 500,
+                '&:hover': {
+                  background: '#2087EC',
+                  color: '#fff',
+                  boxShadow: 3,
+                  transform: 'scale(1.05)',
+                  transition: 'all 0.2s ease-in-out',
+                },
+              }}
+              aria-label="Deposit funds"
+            >
+              {depositLoading ? 'Processing...' : 'Deposit'}
+            </Button>
+          </Box>
+        </Card>
+
+        {/* Withdrawal */}
+        <Card
+          sx={{
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, #ffffff, #e8f0fe)',
+            border: '1px solid #e0e0e0',
+            boxShadow: 2,
+            p: 2,
+            mb: 2,
+            '&:hover': {
+              background: 'linear-gradient(180deg, #f5f5f5, #ffffff)',
+              boxShadow: 4,
+              transition: 'all 0.2s ease-in-out',
+            },
+          }}
+          role="article"
+          aria-label="Withdraw funds"
+        >
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#000',
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: 600,
+              mb: 1,
+            }}
+          >
+            Withdraw Funds
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#666',
+              fontFamily: 'Inter, sans-serif',
+              mb: 2,
+            }}
+          >
+            Withdraw your earnings to your M-PESA account.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Phone Number (07XXXXXXXX or 254XXXXXXXXX)"
+              value={withdrawalData.phoneNumber}
+              onChange={(e) => setWithdrawalData({ ...withdrawalData, phoneNumber: e.target.value })}
+              fullWidth
+              size="small"
+              disabled={withdrawalLoading}
+            />
+            <TextField
+              label="Amount (KES)"
+              type="number"
+              value={withdrawalData.amount}
+              onChange={(e) => setWithdrawalData({ ...withdrawalData, amount: e.target.value })}
+              fullWidth
+              size="small"
+              disabled={withdrawalLoading}
+            />
+            {error && (
+              <Typography color="error" variant="body2">
+                {error}
+              </Typography>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleWithdrawal}
+              startIcon={withdrawalLoading ? <CircularProgress size={20} /> : <ArrowDownward />}
+              disabled={withdrawalLoading}
+              sx={{
+                px: 3,
+                py: 1,
+                borderRadius: 8,
+                background: 'linear-gradient(180deg, #fff, #f5f5f5)',
+                border: '1px solid #e0e0e0',
+                boxShadow: 1,
+                textTransform: 'none',
+                color: '#000',
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 500,
+                '&:hover': {
+                  background: '#2087EC',
+                  color: '#fff',
+                  boxShadow: 3,
+                  transform: 'scale(1.05)',
+                  transition: 'all 0.2s ease-in-out',
+                },
+              }}
+              aria-label="Withdraw funds"
+            >
+              {withdrawalLoading ? 'Processing...' : 'Withdraw'}
+            </Button>
+          </Box>
+        </Card>
+
+        {/* Transaction History */}
+        <Card
+          sx={{
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, #ffffff, #e8f0fe)',
+            border: '1px solid #e0e0e0',
+            boxShadow: 2,
+            p: 2,
+            mb: 2,
+            '&:hover': {
+              background: 'linear-gradient(180deg, #f5f5f5, #ffffff)',
+              boxShadow: 4,
+              transition: 'all 0.2s ease-in-out',
+            },
+          }}
+          role="article"
+          aria-label="Transaction history"
+        >
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#000',
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: 600,
+              mb: 1,
+            }}
+          >
+            Transaction History
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#666',
+              fontFamily: 'Inter, sans-serif',
+              mb: 2,
+            }}
+          >
+            View your recent deposits and withdrawals.
+          </Typography>
+          <List sx={{ maxHeight: 200, overflow: 'auto' }}>
+            {transactions.length === 0 ? (
+              <ListItem>
+                <ListItemText primary="No transactions yet." />
+              </ListItem>
+            ) : (
+              transactions.map((tx) => (
+                <ListItem key={tx.reference}>
+                  <ListItemText
+                    primary={`${tx.type === 'deposit' ? 'Deposit' : 'Withdrawal'}: KES ${tx.amount.toFixed(2)}`}
+                    secondary={`${tx.status} - ${tx.createdAt.toDate().toLocaleString()}`}
+                  />
+                </ListItem>
+              ))
+            )}
+          </List>
         </Card>
 
         {/* Referrals */}

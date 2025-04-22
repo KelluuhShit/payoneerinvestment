@@ -1,0 +1,24 @@
+{
+    "routes": [
+      {
+        "src": "/api/payhero-stk-push",
+        "methods": ["POST", "OPTIONS"],
+        "dest": "api/payhero-stk-push.js"
+      },
+      {
+        "src": "/api/payhero-callback",
+        "methods": ["POST"],
+        "dest": "api/payhero-callback.js"
+      },
+      {
+        "src": "/api/transaction-status",
+        "methods": ["GET"],
+        "dest": "api/transaction-status.js"
+      },
+      {
+        "src": "/api/payhero-payout",
+        "methods": ["POST", "OPTIONS"],
+        "dest": "api/payhero-payout.js"
+      }
+    ]
+  }
