@@ -121,86 +121,93 @@ const Home = () => {
     setWithdrawSuccess('');
   };
 
-  // Handle deposit
-  const handleConfirmTopUp = async () => {
-    if (!depositData.phoneNumber || !depositData.amount) {
-      setTopUpError('Please enter phone number and amount.');
-      return;
-    }
-    const phoneRegex = /^(?:254|0)7\d{8}$/;
-    if (!phoneRegex.test(depositData.phoneNumber)) {
-      setTopUpError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
-      return;
-    }
-    const amount = Number(depositData.amount);
-    if (isNaN(amount) || amount <= 0) {
-      setTopUpError('Amount must be a positive number.');
-      return;
-    }
-    setDepositLoading(true);
-    setTopUpError('');
-    setTopUpSuccess('');
-    try {
-      const reference = `DEP-${Date.now()}-${user.id}`;
-      const response = await axios.post(`${API_BASE_URL}/api/payhero-stk-push`, {
-        phoneNumber: depositData.phoneNumber,
+ // Handle deposit
+const handleConfirmTopUp = async () => {
+  if (!depositData.phoneNumber || !depositData.amount) {
+    setTopUpError('Please enter phone number and amount.');
+    return;
+  }
+  const phoneRegex = /^(?:254|0)7\d{8}$/;
+  if (!phoneRegex.test(depositData.phoneNumber)) {
+    setTopUpError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
+    return;
+  }
+  const amount = Number(depositData.amount);
+  if (isNaN(amount) || amount <= 0) {
+    setTopUpError('Amount must be a positive number.');
+    return;
+  }
+  setDepositLoading(true);
+  setTopUpError('');
+  setTopUpSuccess('');
+  try {
+    const reference = `DEP-${Date.now()}-${user.id}`;
+    const response = await axios.post(`${API_BASE_URL}/api/payhero-stk-push`, {
+      phoneNumber: depositData.phoneNumber,
+      amount,
+      reference,
+    });
+    console.log('STK Push response:', response.data); // Debug log
+    if (response.data.success) {
+      const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+        type: 'deposit',
         amount,
+        status: 'QUEUED',
         reference,
+        createdAt: serverTimestamp(),
       });
-      if (response.data.success) {
-        const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
-          type: 'deposit',
-          amount,
-          status: 'QUEUED',
-          reference,
-          createdAt: serverTimestamp(),
-        });
-        let attempts = 0;
-        const interval = setInterval(async () => {
-          attempts++;
-          try {
-            const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
-            const { status } = statusResponse.data;
-            await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
-            if (status === 'SUCCESS') {
-              await runTransaction(db, async (transaction) => {
-                const userRef = doc(db, 'users', user.id);
-                const userDoc = await transaction.get(userRef);
-                const newBalance = (userDoc.data().balance || 0) + amount;
-                transaction.update(userRef, { balance: newBalance });
-                transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
-              });
-              setBalance((prev) => prev + amount);
-              setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
-              clearInterval(interval);
-              setDepositData({ phoneNumber: '', amount: '' });
-              setTimeout(() => setOpenTopUpModal(false), 1000);
-            } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
-              setTopUpError(`Deposit ${status.toLowerCase()}.`);
-              clearInterval(interval);
-            }
-          } catch (err) {
-            console.error('Status poll error:', err.message);
-            if (attempts >= 30) {
-              setTopUpError('Deposit timed out.');
-              clearInterval(interval);
-            }
+      let attempts = 0;
+      const interval = setInterval(async () => {
+        attempts++;
+        try {
+          const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
+          const { status } = statusResponse.data;
+          console.log(`Transaction status [attempt ${attempts}]:`, status); // Debug log
+          await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+          if (status === 'SUCCESS') {
+            await runTransaction(db, async (transaction) => {
+              const userRef = doc(db, 'users', user.id);
+              const userDoc = await transaction.get(userRef);
+              const newBalance = (userDoc.data().balance || 0) + amount;
+              transaction.update(userRef, { balance: newBalance });
+              transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+            });
+            setBalance((prev) => prev + amount);
+            setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
+            clearInterval(interval);
+            setDepositData({ phoneNumber: '', amount: '' });
+            setTimeout(() => setOpenTopUpModal(false), 1000);
+          } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
+            setTopUpError(`Deposit ${status.toLowerCase()}.`);
+            clearInterval(interval);
           }
-        }, 5000);
-      } else {
-        setTopUpError(response.data.error || 'Failed to initiate deposit.');
-      }
-    } catch (err) {
-      console.error('Deposit error:', err);
-      if (err.response?.status === 404) {
-        setTopUpError('Deposit API not found. Please check server configuration.');
-      } else {
-        setTopUpError(err.response?.data?.error || 'Network error. Please try again.');
-      }
-    } finally {
-      setDepositLoading(false);
+        } catch (err) {
+          console.error('Status poll error:', err.message);
+          if (attempts >= 30) {
+            setTopUpError('Deposit timed out.');
+            clearInterval(interval);
+          }
+        }
+      }, 5000);
+    } else {
+      const errorMsg = response.data.error || response.data.data?.error_message || 'Failed to initiate deposit.';
+      setTopUpError(errorMsg);
+      console.log('STK Push failed:', response.data); // Debug log
     }
-  };
+  } catch (err) {
+    console.error('Deposit error:', err);
+    const errorMessage =
+      err.response?.data?.error ||
+      err.response?.data?.data?.error_message ||
+      err.message ||
+      'Failed to process deposit. Please try again.';
+    setTopUpError(errorMessage);
+    console.log('Set topUpError:', errorMessage);
+    console.log('Error response:', err.response?.data);
+  } finally {
+    setDepositLoading(false);
+  }
+};
 
   // Handle withdrawal
   const handleConfirmWithdraw = async () => {

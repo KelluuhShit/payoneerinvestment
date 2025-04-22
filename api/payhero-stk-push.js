@@ -1,7 +1,6 @@
 // api/payhero-stk-push.js
 const axios = require('axios');
 
-// Load environment variables in development
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -12,10 +11,8 @@ module.exports = async (req, res) => {
     ? 'https://payoneerinvestment.vercel.app'
     : 'http://localhost:3000';
 
-  // Log incoming request
   console.log('Received request:', req.method, req.body);
 
-  // Handle CORS preflight (OPTIONS)
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -23,18 +20,15 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Restrict to POST
   if (req.method !== 'POST') {
     res.setHeader('Access-Control-Allow-Origin', origin);
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Extract and validate request body
   const { phoneNumber, amount, reference } = req.body;
   console.log(`STK Push requested - Phone: ${phoneNumber}, Amount: ${amount}, Reference: ${reference}`);
 
@@ -45,7 +39,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  // Format and validate phone number
   const formattedPhone = phoneNumber.startsWith('0') ? `254${phoneNumber.slice(1)}` : phoneNumber;
   if (!/^(254[17]\d{8})$/.test(formattedPhone)) {
     return res.status(400).json({
@@ -54,7 +47,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  // Validate amount
   const parsedAmount = Number(amount);
   if (isNaN(parsedAmount) || parsedAmount <= 0) {
     return res.status(400).json({
@@ -64,7 +56,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Load PayHero credentials
     const apiUsername = process.env.PAYHERO_API_USERNAME;
     const apiPassword = process.env.PAYHERO_API_PASSWORD;
     console.log('API Credentials:', {
@@ -76,41 +67,38 @@ module.exports = async (req, res) => {
       throw new Error('Missing PayHero API credentials');
     }
 
-    // Create auth token
     const authToken = `Basic ${Buffer.from(`${apiUsername}:${apiPassword}`).toString('base64')}`;
 
-    // Set callback URL (use ngrok for local dev)
     const callbackUrl = isProduction
       ? `https://payoneerinvestment.vercel.app/api/payhero-callback`
-      : process.env.NEXT_PUBLIC_API_URL
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/payhero-callback`
-        : `http://localhost:3000/api/payhero-callback`; // Fallback, but won't work for PayHero
+      : process.env.NGROK_URL
+        ? `${process.env.NGROK_URL}/api/payhero-callback`
+        : `http://localhost:3000/api/payhero-callback`;
 
-    // Prepare payload
     const payload = {
-      phone_number: formattedPhone,
       amount: parsedAmount,
-      reference,
+      phone_number: formattedPhone,
+      channel_id: 1874, // Required
+      provider: 'm-pesa', // Required
+      external_reference: reference, // Correct field name
       callback_url: callbackUrl,
     };
     console.log('Sending to PayHero:', payload);
 
-    // Call PayHero API
     const response = await axios.post(
-      'https://backend.payhero.co.ke/api/v2/stk-push',
+      'https://backend.payhero.co.ke/api/v2/payments',
       payload,
       {
         headers: {
           Authorization: authToken,
           'Content-Type': 'application/json',
         },
-        timeout: 15000, // Increased timeout
+        timeout: 20000,
       }
     );
 
     console.log('PayHero response:', response.data);
 
-    // Handle response
     if (response.data.status === 'QUEUED' || response.data.success) {
       return res.status(200).json({
         success: true,
@@ -127,9 +115,9 @@ module.exports = async (req, res) => {
   } catch (error) {
     const errorData = error.response?.data || { message: error.message };
     console.error('STK Push error:', JSON.stringify(errorData, null, 2));
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      error: errorData.error_message || error.message || 'An unexpected error occurred',
+      error: errorData.error_message || errorData.message || 'Failed to initiate STK Push',
     });
   }
 };
