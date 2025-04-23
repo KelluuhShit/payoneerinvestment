@@ -1,4 +1,3 @@
-// api/payhero-stk-push.js
 const axios = require('axios');
 
 if (process.env.NODE_ENV !== 'production') {
@@ -71,16 +70,16 @@ module.exports = async (req, res) => {
 
     const callbackUrl = isProduction
       ? `https://payoneerinvestment.vercel.app/api/payhero-callback`
-      : process.env.NGROK_URL
-        ? `${process.env.NGROK_URL}/api/payhero-callback`
+      : process.env.NEXT_PUBLIC_API_URL
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/payhero-callback`
         : `http://localhost:3000/api/payhero-callback`;
 
     const payload = {
       amount: parsedAmount,
       phone_number: formattedPhone,
-      channel_id: 1874, // Required
-      provider: 'm-pesa', // Required
-      external_reference: reference, // Correct field name
+      channel_id: 1874,
+      provider: 'm-pesa',
+      external_reference: reference,
       callback_url: callbackUrl,
     };
     console.log('Sending to PayHero:', payload);
@@ -100,9 +99,15 @@ module.exports = async (req, res) => {
     console.log('PayHero response:', response.data);
 
     if (response.data.status === 'QUEUED' || response.data.success) {
+      // Validate presence of CheckoutRequestID
+      if (!response.data.CheckoutRequestID) {
+        console.warn('PayHero response missing CheckoutRequestID:', response.data);
+      }
       return res.status(200).json({
         success: true,
-        reference: response.data.reference || reference,
+        reference: reference, // Client-provided reference
+        payheroReference: response.data.reference || '', // PayHero's reference
+        CheckoutRequestID: response.data.CheckoutRequestID || null, // PayHero's CheckoutRequestID
         message: 'STK Push initiated',
       });
     } else {
@@ -115,7 +120,7 @@ module.exports = async (req, res) => {
   } catch (error) {
     const errorData = error.response?.data || { message: error.message };
     console.error('STK Push error:', JSON.stringify(errorData, null, 2));
-    return res.status(400).json({
+    return res.status(error.response?.status || 400).json({
       success: false,
       error: errorData.error_message || errorData.message || 'Failed to initiate STK Push',
     });

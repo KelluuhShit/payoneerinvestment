@@ -1,30 +1,6 @@
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
-
 const axios = require('axios');
 
 module.exports = async (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const origin = isProduction ? 'https://payoneerinvestment.vercel.app/' : 'http://localhost:3000';
-
-  // Handle CORS preflight request (OPTIONS)
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
-
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   const { reference } = req.query;
   console.log(`[${new Date().toISOString()}] Transaction status requested - Reference: ${reference}`);
 
@@ -37,7 +13,8 @@ module.exports = async (req, res) => {
     const apiUsername = process.env.PAYHERO_API_USERNAME;
     const apiPassword = process.env.PAYHERO_API_PASSWORD;
     if (!apiUsername || !apiPassword) {
-      throw new Error('Missing PayHero API credentials');
+      console.error('Missing PayHero API credentials');
+      return res.status(500).json({ success: false, error: 'Server configuration error: Missing API credentials' });
     }
     const authToken = `Basic ${Buffer.from(`${apiUsername}:${apiPassword}`).toString('base64')}`;
 
@@ -50,31 +27,40 @@ module.exports = async (req, res) => {
     );
 
     const statusData = response.data;
-    let normalizedStatus;
+    console.log(`PayHero transaction status response for ${reference}:`, JSON.stringify(statusData, null, 2));
 
-    if (statusData.status === 'SUCCESS') {
+    let normalizedStatus;
+    if (!statusData || typeof statusData.status !== 'string') {
+      console.warn(`Invalid PayHero response for ${reference}:`, statusData);
+      normalizedStatus = 'QUEUED';
+    } else if (statusData.status.toUpperCase() === 'SUCCESS') {
       normalizedStatus = 'SUCCESS';
-    } else if (statusData.status === 'FAILED' && statusData.error_message?.toLowerCase().includes('cancel')) {
+    } else if (statusData.status.toUpperCase() === 'FAILED' && statusData.error_message?.toLowerCase().includes('cancel')) {
       normalizedStatus = 'CANCELLED';
-    } else if (statusData.status === 'FAILED') {
+    } else if (statusData.status.toUpperCase() === 'FAILED') {
       normalizedStatus = 'FAILED';
-    } else if (statusData.status === 'CANCELLED') {
+    } else if (statusData.status.toUpperCase() === 'CANCELLED') {
       normalizedStatus = 'CANCELLED';
     } else {
       normalizedStatus = 'QUEUED';
     }
 
-    console.log(`Status for ${reference}: ${normalizedStatus}`);
+    console.log(`Normalized status for ${reference}: ${normalizedStatus}`);
     res.json({
       success: true,
       status: normalizedStatus,
       data: statusData,
     });
   } catch (error) {
-    console.error('Transaction status error:', error.message, error.response?.data);
-    res.status(500).json({
+    const errorDetails = {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data || null,
+    };
+    console.error(`Transaction status error for ${reference}:`, JSON.stringify(errorDetails, null, 2));
+    res.status(error.response?.status || 500).json({
       success: false,
-      error: error.message || 'An unexpected error occurred',
+      error: error.response?.data?.error_message || error.message || 'Failed to fetch transaction status',
     });
   }
 };

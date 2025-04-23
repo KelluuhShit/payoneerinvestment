@@ -32,6 +32,8 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, updateDoc, addDoc, collection, runTransaction, serverTimestamp } from '../service/firebase';
 import axios from 'axios';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://payoneerinvestment.vercel.app/' : 'http://localhost:3000';
 
@@ -59,8 +61,13 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // Validate authentication and fetch user data on mount
+  // Test toast on mount
   useEffect(() => {
+    console.log('Attempting to show test toast');
+    toast.info('Test toast on mount', {
+      onOpen: () => console.log('Test toast should be visible'),
+      onClose: () => console.log('Test toast closed'),
+    });
     const checkAuthAndFetchUser = async () => {
       const userId = localStorage.getItem('userId');
       if (!userId) {
@@ -77,6 +84,7 @@ const Home = () => {
         const userData = userDoc.data();
         setUser({
           id: userId,
+          uid: userId,
           name: userData.name || 'Unknown User',
           email: userData.email || 'No email provided',
           referralCode: userData.referralCode || 'REF000',
@@ -121,70 +129,105 @@ const Home = () => {
     setWithdrawSuccess('');
   };
 
- // Handle deposit
+// Handle deposit
 const handleConfirmTopUp = async () => {
   if (!depositData.phoneNumber || !depositData.amount) {
     setTopUpError('Please enter phone number and amount.');
+    toast.error('Please enter phone number and amount.');
     return;
   }
   const phoneRegex = /^(?:254|0)7\d{8}$/;
   if (!phoneRegex.test(depositData.phoneNumber)) {
     setTopUpError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
+    toast.error('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
     return;
   }
   const amount = Number(depositData.amount);
   if (isNaN(amount) || amount <= 0) {
     setTopUpError('Amount must be a positive number.');
+    toast.error('Amount must be a positive number.');
     return;
   }
   setDepositLoading(true);
   setTopUpError('');
   setTopUpSuccess('');
   try {
-    const reference = `DEP-${Date.now()}-${user.id}`;
+    const reference = `DEP-${Date.now()}-${user.uid}`;
     const response = await axios.post(`${API_BASE_URL}/api/payhero-stk-push`, {
       phoneNumber: depositData.phoneNumber,
       amount,
       reference,
     });
-    console.log('STK Push response:', response.data); // Debug log
+    console.log('STK Push response:', response.data);
     if (response.data.success) {
-      const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
+      console.log('Triggering STK toast for:', depositData.phoneNumber);
+      toast.success(`STK initiated successfully on ${depositData.phoneNumber}`, {
+        onOpen: () => console.log('STK toast should be visible'),
+        onClose: () => console.log('STK toast closed'),
+      });
+      console.log('Authenticated user:', { id: user.id, uid: user.uid });
+      // Validate PayHero response fields
+      const payheroReference = response.data.payheroReference || '';
+      const checkoutRequestID = response.data.CheckoutRequestID || null;
+      if (!payheroReference) {
+        console.warn('PayHero response missing payheroReference');
+      }
+      if (!checkoutRequestID) {
+        console.warn('PayHero response missing CheckoutRequestID');
+      }
+      const txRef = await addDoc(collection(db, `users/${user.uid}/transactions`), {
         type: 'deposit',
         amount,
         status: 'QUEUED',
         reference,
+        payheroReference,
+        checkoutRequestID,
         createdAt: serverTimestamp(),
       });
       let attempts = 0;
       const interval = setInterval(async () => {
+        if (attempts === 0) {
+          console.log('Delaying first poll by 10 seconds');
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+        }
         attempts++;
         try {
-          const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
+          const statusReference = payheroReference || checkoutRequestID || reference;
+          console.log(`Polling with reference: ${statusReference}`);
+          const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${statusReference}`);
           const { status } = statusResponse.data;
-          console.log(`Transaction status [attempt ${attempts}]:`, status); // Debug log
-          await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+          console.log(`Transaction status [attempt ${attempts}]:`, status);
+          await updateDoc(doc(db, `users/${user.uid}/transactions`, txRef.id), { status });
           if (status === 'SUCCESS') {
             await runTransaction(db, async (transaction) => {
-              const userRef = doc(db, 'users', user.id);
+              const userRef = doc(db, 'users', user.uid);
               const userDoc = await transaction.get(userRef);
               const newBalance = (userDoc.data().balance || 0) + amount;
               transaction.update(userRef, { balance: newBalance });
-              transaction.update(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
+              transaction.update(doc(db, `users/${user.uid}/transactions`, txRef.id), { status });
             });
             setBalance((prev) => prev + amount);
             setTopUpSuccess(`Deposited KES ${amount.toFixed(2)} successfully.`);
+            console.log('Triggering deposit success toast for:', amount);
+            toast.success(`Deposit successful of ${amount.toFixed(2)} KES`, {
+              onOpen: () => console.log('Deposit success toast should be visible'),
+              onClose: () => console.log('Deposit success toast closed'),
+            });
             clearInterval(interval);
             setDepositData({ phoneNumber: '', amount: '' });
             setTimeout(() => setOpenTopUpModal(false), 1000);
           } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
             setTopUpError(`Deposit ${status.toLowerCase()}.`);
+            toast.error(`Deposit ${status.toLowerCase()}.`);
             clearInterval(interval);
           }
         } catch (err) {
-          console.error('Status poll error:', err.message);
+          console.error('Status poll error:', err);
+          const errorMessage = err.response?.data?.error || err.message || 'Failed to check transaction status.';
+          console.log('Status poll error details:', { message: err.message, status: err.response?.status, data: err.response?.data });
           if (attempts >= 30) {
-            setTopUpError('Deposit timed out.');
+            setTopUpError('Deposit timed out. Please check your transaction history.');
+            toast.error('Deposit timed out. Please check your transaction history.');
             clearInterval(interval);
           }
         }
@@ -192,16 +235,20 @@ const handleConfirmTopUp = async () => {
     } else {
       const errorMsg = response.data.error || response.data.data?.error_message || 'Failed to initiate deposit.';
       setTopUpError(errorMsg);
-      console.log('STK Push failed:', response.data); // Debug log
+      toast.error(errorMsg);
+      console.log('STK Push failed:', response.data);
     }
   } catch (err) {
     console.error('Deposit error:', err);
     const errorMessage =
-      err.response?.data?.error ||
-      err.response?.data?.data?.error_message ||
-      err.message ||
-      'Failed to process deposit. Please try again.';
+      err.message === 'Missing or insufficient permissions.'
+        ? 'Permission denied. Please contact support.'
+        : err.response?.data?.error ||
+          err.response?.data?.data?.error_message ||
+          err.message ||
+          'Failed to process deposit. Please try again.';
     setTopUpError(errorMessage);
+    toast.error(errorMessage);
     console.log('Set topUpError:', errorMessage);
     console.log('Error response:', err.response?.data);
   } finally {
@@ -213,20 +260,24 @@ const handleConfirmTopUp = async () => {
   const handleConfirmWithdraw = async () => {
     if (!withdrawData.phoneNumber || !withdrawData.amount) {
       setWithdrawError('Please enter phone number and amount.');
+      toast.error('Please enter phone number and amount.');
       return;
     }
     const phoneRegex = /^(?:254|0)7\d{8}$/;
     if (!phoneRegex.test(withdrawData.phoneNumber)) {
       setWithdrawError('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
+      toast.error('Phone number must be 254XXXXXXXXX or 07XXXXXXXX');
       return;
     }
     const amount = Number(withdrawData.amount);
     if (isNaN(amount) || amount <= 0) {
       setWithdrawError('Amount must be a positive number.');
+      toast.error('Amount must be a positive number.');
       return;
     }
     if (amount > balance) {
       setWithdrawError('Insufficient balance.');
+      toast.error('Insufficient balance.');
       return;
     }
     setWithdrawLoading(true);
@@ -240,20 +291,35 @@ const handleConfirmTopUp = async () => {
         reference,
         userId: user.id,
       });
+      console.log('Payout response:', response.data);
       if (response.data.success) {
+        console.log('Triggering withdrawal toast for:', withdrawData.phoneNumber);
+        toast.success(`Withdrawal initiated successfully on ${withdrawData.phoneNumber}`, {
+          onOpen: () => console.log('Withdrawal toast should be visible'),
+          onClose: () => console.log('Withdrawal toast closed'),
+        });
         const txRef = await addDoc(collection(db, `users/${user.id}/transactions`), {
           type: 'withdrawal',
           amount,
           status: 'QUEUED',
           reference,
+          payheroReference: response.data.payheroReference || response.data.reference,
+          checkoutRequestID: response.data.CheckoutRequestID,
           createdAt: serverTimestamp(),
         });
         let attempts = 0;
         const interval = setInterval(async () => {
+          if (attempts === 0) {
+            console.log('Delaying first poll by 10 seconds');
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+          }
           attempts++;
           try {
-            const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${reference}`);
+            const statusReference = response.data.payheroReference || response.data.CheckoutRequestID || reference;
+            console.log(`Polling with reference: ${statusReference}`);
+            const statusResponse = await axios.get(`${API_BASE_URL}/api/transaction-status?reference=${statusReference}`);
             const { status } = statusResponse.data;
+            console.log(`Transaction status [attempt ${attempts}]:`, status);
             await updateDoc(doc(db, `users/${user.id}/transactions`, txRef.id), { status });
             if (status === 'SUCCESS') {
               await runTransaction(db, async (transaction) => {
@@ -265,26 +331,49 @@ const handleConfirmTopUp = async () => {
               });
               setBalance((prev) => prev - amount);
               setWithdrawSuccess(`Withdrawn KES ${amount.toFixed(2)} successfully.`);
+              console.log('Triggering withdrawal success toast for:', amount);
+              toast.success(`Withdrawal successful of ${amount.toFixed(2)} KES`, {
+                onOpen: () => console.log('Withdrawal success toast should be visible'),
+                onClose: () => console.log('Withdrawal success toast closed'),
+              });
               clearInterval(interval);
               setWithdrawData({ phoneNumber: '', amount: '' });
               setTimeout(() => setOpenWithdrawModal(false), 1000);
             } else if (status === 'FAILED' || status === 'CANCELLED' || attempts >= 30) {
               setWithdrawError(`Withdrawal ${status.toLowerCase()}.`);
+              toast.error(`Withdrawal ${status.toLowerCase()}.`);
               clearInterval(interval);
             }
           } catch (err) {
             console.error('Status poll error:', err);
+            const errorMessage = err.response?.data?.error || err.message || 'Failed to check transaction status.';
+            console.log('Status poll error details:', { message: err.message, status: err.response?.status, data: err.response?.data });
             if (attempts >= 30) {
-              setWithdrawError('Withdrawal timed out.');
+              setWithdrawError('Withdrawal timed out. Please check your transaction history.');
+              toast.error('Withdrawal timed out. Please check your transaction history.');
               clearInterval(interval);
             }
           }
         }, 5000);
       } else {
-        setWithdrawError(response.data.error || 'Failed to initiate withdrawal.');
+        const errorMsg = response.data.error || response.data.data?.error_message || 'Failed to initiate withdrawal.';
+        setWithdrawError(errorMsg);
+        toast.error(errorMsg);
+        console.log('Payout failed:', response.data);
       }
     } catch (err) {
-      setWithdrawError(err.response?.data?.error || 'An error occurred during withdrawal.');
+      console.error('Withdrawal error:', err);
+      const errorMessage =
+        err.message === 'Missing or insufficient permissions.'
+          ? 'Permission denied. Please contact support.'
+          : err.response?.data?.error ||
+            err.response?.data?.data?.error_message ||
+            err.message ||
+            'Failed to process withdrawal. Please try again.';
+      setWithdrawError(errorMessage);
+      toast.error(errorMessage);
+      console.log('Set withdrawError:', errorMessage);
+      console.log('Error response:', err.response?.data);
     } finally {
       setWithdrawLoading(false);
     }
@@ -305,13 +394,19 @@ const handleConfirmTopUp = async () => {
           ...investment,
           startTime: new Date(),
         });
+        toast.success(`Invested KES ${investment.investmentAmount.toFixed(2)} successfully!`, {
+          onOpen: () => console.log('Investment toast should be visible'),
+          onClose: () => console.log('Investment toast closed'),
+        });
       } catch (err) {
         console.error('Error saving investment:', err);
         setBalance(balance);
+        toast.error('Failed to save investment.');
         return;
       }
     } else {
       setOpenBalanceModal(true);
+      toast.error('Insufficient balance to invest.');
     }
   };
 
@@ -339,9 +434,12 @@ const handleConfirmTopUp = async () => {
   const handleCopyLink = () => {
     if (user?.referralLink) {
       navigator.clipboard.writeText(user.referralLink);
-      alert('Referral link copied to clipboard!');
+      toast.success('Referral link copied to clipboard!', {
+        onOpen: () => console.log('Referral toast should be visible'),
+        onClose: () => console.log('Referral toast closed'),
+      });
     } else {
-      alert('Referral link not available.');
+      toast.error('Referral link not available.');
     }
   };
 
@@ -353,11 +451,16 @@ const handleConfirmTopUp = async () => {
       if (outcome === 'accepted') {
         console.log('PWA installed');
         setInstallPrompt(null);
+        toast.success('App installed successfully!', {
+          onOpen: () => console.log('Install toast should be visible'),
+          onClose: () => console.log('Install toast closed'),
+        });
       } else {
         console.log('PWA installation dismissed');
+        toast.info('PWA installation dismissed.');
       }
     } else {
-      alert('To install the app, use a PWA-compatible browser and select "Add to Home Screen".');
+      toast.info('To install the app, use a PWA-compatible browser and select "Add to Home Screen".');
     }
   };
 
@@ -372,8 +475,13 @@ const handleConfirmTopUp = async () => {
       try {
         await navigator.share(shareData);
         console.log('App shared successfully');
+        toast.success('App shared successfully!', {
+          onOpen: () => console.log('Share toast should be visible'),
+          onClose: () => console.log('Share toast closed'),
+        });
       } catch (error) {
         console.error('Share failed:', error);
+        toast.error('Failed to share app.');
       }
     } else {
       setOpenShareModal(true);
@@ -384,6 +492,10 @@ const handleConfirmTopUp = async () => {
   const handleLogout = () => {
     localStorage.removeItem('userId');
     navigate('/signin', { replace: true });
+    toast.success('Logged out successfully!', {
+      onOpen: () => console.log('Logout toast should be visible'),
+      onClose: () => console.log('Logout toast closed'),
+    });
   };
 
   if (loading || !user) {
@@ -396,6 +508,19 @@ const handleConfirmTopUp = async () => {
 
   return (
     <Box sx={{ ml: 2, mr: 2, mt: 2 }}>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        style={{ zIndex: 9999 }}
+      />
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -617,18 +742,18 @@ const handleConfirmTopUp = async () => {
             <Typography
               sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#000' }}
             >
-              Name: {user.name}
+              Name: {user?.name}
             </Typography>
             <Typography
               sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#000', mt: 1 }}
             >
-              Email: {user.email}
+              Email: {user?.email}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
               <Typography
                 sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#2087EC' }}
               >
-                Referral Code: {user.referralCode}
+                Referral Code: {user?.referralCode}
               </Typography>
               <IconButton
                 onClick={handleCopyLink}
@@ -786,7 +911,7 @@ const handleConfirmTopUp = async () => {
               <Typography
                 sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500, color: '#2087EC' }}
               >
-                {user.referralLink || 'https://payoneerinvestment.vercel.app'}
+                {user?.referralLink || 'https://payoneerinvestment.vercel.app'}
               </Typography>
               <IconButton
                 onClick={handleCopyLink}
