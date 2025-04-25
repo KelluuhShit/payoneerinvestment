@@ -18,25 +18,56 @@ import {
   HourglassEmpty,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import { toast } from 'react-toastify';
+import { db } from '../service/firebase'; // Changed: Import Firestore
+import { collection, getDocs } from 'firebase/firestore'; // Changed: Firestore functions
 
 const Assets = () => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(''); // Changed: Error state
+  const [investments, setInvestments] = useState([]); // Changed: Investments state
   const navigate = useNavigate();
 
+  // Changed: Fetch investments from Firestore
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchInvestments = async () => {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        setError('Please sign in.');
+        toast.error('Please sign in.');
+        navigate('/signin', { replace: true });
+        return;
+      }
+      try {
+        setLoading(true);
+        setError('');
+        const investmentsSnapshot = await getDocs(collection(db, `users/${userId}/investments`));
+        const investmentsData = investmentsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+        }));
+        setInvestments(investmentsData);
+      } catch (err) {
+        console.error('Error fetching investments:', err);
+        setError('Failed to load investments.');
+        toast.error('Failed to load investments.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInvestments();
+  }, [navigate]);
 
-  // No active investments initially
-  const activeInvestments = useMemo(() => [], []);
+  // Changed: Memoized active investments
+  const activeInvestments = useMemo(() => investments, [investments]);
 
-  // Fallback image
+  // Changed: Fallback image, make configurable
   const fallbackImage = 'https://via.placeholder.com/120x100?text=Mining+Machine';
 
   const SkeletonInvestment = () => (
     <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {Array.from({ length: 2 }).map((_, index) => (
           <Box
             key={index}
@@ -91,7 +122,68 @@ const Assets = () => {
       >
         Your Assets
       </Typography>
-
+      {/* Changed: Display error with retry button */}
+      {error && (
+        <Box sx={{ mb: 2, textAlign: 'center' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#FE4600',
+              fontFamily: 'Inter, sans-serif',
+              mb: 1,
+            }}
+          >
+            {error}
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setError('');
+              setLoading(true);
+              const fetchInvestments = async () => {
+                const userId = localStorage.getItem('userId');
+                if (!userId) {
+                  setError('Please sign in.');
+                  toast.error('Please sign in.');
+                  navigate('/signin', { replace: true });
+                  return;
+                }
+                try {
+                  const investmentsSnapshot = await getDocs(collection(db, `users/${userId}/investments`));
+                  const investmentsData = investmentsSnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    createdAt: doc.data().createdAt?.toDate() || new Date(),
+                  }));
+                  setInvestments(investmentsData);
+                } catch (err) {
+                  console.error('Error fetching investments:', err);
+                  setError('Failed to load investments.');
+                  toast.error('Failed to load investments.');
+                } finally {
+                  setLoading(false);
+                }
+              };
+              fetchInvestments();
+            }}
+            sx={{
+              borderRadius: 8,
+              borderColor: '#2087EC',
+              color: '#2087EC',
+              textTransform: 'none',
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: 500,
+              '&:hover': {
+                background: '#e8f0fe',
+                borderColor: '#1a6dc3',
+              },
+            }}
+            aria-label="Retry loading investments"
+          >
+            Retry
+          </Button>
+        </Box>
+      )}
       {loading ? (
         <SkeletonInvestment />
       ) : activeInvestments.length > 0 ? (
@@ -104,7 +196,7 @@ const Assets = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, ml: 3, mr: 3 }}>
               {activeInvestments.map((item, index) => (
                 <Card
-                  key={index}
+                  key={item.id} // Changed: Use item.id
                   role="article"
                   aria-label={`${item.name} with ${item.usersInvested.toLocaleString()} users, ${item.change}% change, ${item.investmentPeriod} days period, $${item.dailyIncome} daily income, ${item.daysRemaining} days remaining`}
                   sx={{
@@ -117,7 +209,7 @@ const Assets = () => {
                     flexDirection: 'row',
                     alignItems: 'center',
                     '&:hover': {
-                      background: 'linear-gradient(180deg, #f5f5f Diesel Fuel For Life Men Eau De Toilette Spray, 4.2 Ounce5f5, #ffffff)',
+                      background: 'linear-gradient(180deg, #f5f5f5, #ffffff)',
                       boxShadow: 4,
                       transform: 'scale(1.01)',
                       transition: 'all 0.2s ease-in-out',
@@ -126,7 +218,7 @@ const Assets = () => {
                 >
                   <Box
                     component="img"
-                    src={item.image}
+                    src={item.image || fallbackImage} // Changed: Use item.image
                     alt={item.name}
                     onError={(e) => (e.target.src = fallbackImage)}
                     sx={{

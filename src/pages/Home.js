@@ -63,11 +63,7 @@ const Home = () => {
 
   // Test toast on mount
   useEffect(() => {
-    console.log('Attempting to show test toast');
-    toast.info('Test toast on mount', {
-      onOpen: () => console.log('Test toast should be visible'),
-      onClose: () => console.log('Test toast closed'),
-    });
+    
     const checkAuthAndFetchUser = async () => {
       const userId = localStorage.getItem('userId');
       if (!userId) {
